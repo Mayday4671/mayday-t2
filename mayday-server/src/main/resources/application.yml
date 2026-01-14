@@ -1,0 +1,89 @@
+# ======================
+# MayDay Auth Demo Configuration
+# ======================
+
+server:
+  port: 9002
+
+spring:
+  application:
+    name: mayday-auth-demo
+  
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/mayday-t2?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: root
+    password: root
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 30000
+      pool-name: MayDayHikariCP
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+  # Jackson JSON 日期格式配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+
+  # Redis 配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+      timeout: 10s
+      lettuce:
+        pool:
+          min-idle: 0
+          max-idle: 8
+          max-active: 8
+          max-wait: -1ms
+
+# MyBatis Flex 配置
+mybatis-flex:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+
+# MayDay Auth 配置
+mayday:
+  auth:
+    jwt:
+      # JWT 密钥 (生产环境请使用更复杂的密钥)
+      secret: mayday-security-jwt-secret-key-must-be-at-least-256-bits-long
+      # Token 有效期 (分钟)
+      expire-minutes: 30
+      # Token 刷新阈值 (分钟) - 剩余时间小于此值时自动刷新
+      refresh-threshold-minutes: 10
+
+# 日志配置
+logging:
+  level:
+    com.mayday: debug
+    com.mybatisflex: debug
+
+# springdoc
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    -   group: 'default'
+        paths-to-match: '/**'
+        packages-to-scan: com.mayday
+
+# knife4j
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
