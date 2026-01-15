@@ -59,7 +59,8 @@ public class SecurityConfig {
             "/v3/api-docs/**",
             "/doc.html",
             "/webjars/**",
-            "/crawler-images/**"  // 爬虫图片静态资源
+            "/crawler-images/**",  // 爬虫图片静态资源
+            "/upload/**"           // 上传文件静态资源
     };
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {

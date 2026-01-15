@@ -14,7 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @author MayDay Auth Generator
  * @since 1.0.0
  */
-@SpringBootApplication(scanBasePackages = {"com.mayday.auth", "com.mayday.server","com.mayday.crawler"})
+@SpringBootApplication(scanBasePackages = {"com.mayday.auth", "com.mayday.server", "com.mayday.crawler", "com.mayday.common"})
 @MapperScan("com.mayday.**.mapper")
 public class MaydayServerApplication
 {

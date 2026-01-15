@@ -59,14 +59,14 @@
             <!-- 用户下拉菜单 -->
             <a-dropdown>
               <a-space class="user-dropdown">
-                <a-avatar :size="28" style="background-color: #1890ff">
-                  {{ userInfo?.username?.charAt(0)?.toUpperCase() }}
+                <a-avatar :size="28" :src="userInfo?.avatar" style="background-color: #1890ff">
+                  {{ !userInfo?.avatar ? userInfo?.username?.charAt(0)?.toUpperCase() : '' }}
                 </a-avatar>
                 <span>{{ userInfo?.username }}</span>
               </a-space>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="profile">
+                  <a-menu-item key="profile" @click="router.push('/profile')">
                     <UserOutlined /> 个人中心
                   </a-menu-item>
                   <a-menu-divider />

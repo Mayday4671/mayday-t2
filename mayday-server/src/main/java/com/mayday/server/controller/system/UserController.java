@@ -74,6 +74,9 @@ public class UserController {
         Map<String, Object> data = new HashMap<>();
         data.put("id", user.getId());
         data.put("username", user.getUsername());
+        data.put("nickname", user.getNickname());
+        data.put("email", user.getEmail());
+        data.put("phone", user.getPhone());
         data.put("status", user.getStatus());
         data.put("deptIds", getDeptIdsByUserId(id));
         data.put("roleIds", getRoleIdsByUserId(id));
@@ -98,6 +101,9 @@ public class UserController {
         SysUser user = new SysUser();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setNickname(request.getNickname());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
         user.setStatus(request.getStatus());
         userMapper.insert(user);
         
@@ -142,6 +148,10 @@ public class UserController {
         }
         
         // 更新基本信息
+        // 更新基本信息
+        user.setNickname(request.getNickname());
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
         user.setStatus(request.getStatus());
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -249,6 +259,9 @@ public class UserController {
         private String username;
         @NotBlank(message = "密码不能为空")
         private String password;
+        private String nickname;
+        private String email;
+        private String phone;
         private String status = "0";
         private List<Long> deptIds;
         private List<Long> roleIds;
@@ -257,6 +270,9 @@ public class UserController {
     @Data
     public static class UpdateUserRequest {
         private String password;
+        private String nickname;
+        private String email;
+        private String phone;
         private String status;
         private List<Long> deptIds;
     }

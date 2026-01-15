@@ -23,6 +23,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import("../views/dashboard/Index.vue"),
         meta: { title: "首页", icon: "DashboardOutlined" },
       },
+      {
+        path: "profile",
+        name: "Profile",
+        component: () => import("../views/profile/index.vue"),
+        meta: { title: "个人中心", icon: "UserOutlined" },
+      },
     ],
   },
   {
@@ -57,11 +63,12 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // 爬虫管理 - 任务、代理、日志
   {
     path: "/crawler",
     component: Layout,
     name: "Crawler",
-    meta: { title: "网络爬虫", icon: "BugOutlined", requiresAuth: true },
+    meta: { title: "爬虫管理", icon: "BugOutlined", requiresAuth: true },
     children: [
       {
         path: "task",
@@ -70,28 +77,37 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "任务管理", icon: "ScheduleOutlined" },
       },
       {
-        path: "article",
-        name: "CrawlerArticle",
-        component: () => import("../views/crawler/article/index.vue"),
-        meta: { title: "文章管理", icon: "FileTextOutlined" },
-      },
-      {
-        path: "image",
-        name: "CrawlerImage",
-        component: () => import("../views/crawler/image/index.vue"),
-        meta: { title: "图片管理", icon: "PictureOutlined" },
+        path: "proxy",
+        name: "CrawlerProxy",
+        component: () => import("../views/crawler/proxy/index.vue"),
+        meta: { title: "代理配置", icon: "GlobalOutlined" },
       },
       {
         path: "log",
         name: "CrawlerLog",
         component: () => import("../views/crawler/log/index.vue"),
-        meta: { title: "爬虫日志", icon: "CodeOutlined" },
+        meta: { title: "日志管理", icon: "CodeOutlined" },
+      },
+    ],
+  },
+  // 文章管理 - 独立一级菜单，包含文章列表和图片列表
+  {
+    path: "/article",
+    component: Layout,
+    name: "Article",
+    meta: { title: "文章管理", icon: "FileTextOutlined", requiresAuth: true },
+    children: [
+      {
+        path: "list",
+        name: "ArticleList",
+        component: () => import("../views/crawler/article/index.vue"),
+        meta: { title: "文章列表", icon: "UnorderedListOutlined" },
       },
       {
-        path: "proxy",
-        name: "CrawlerProxy",
-        component: () => import("../views/crawler/proxy/index.vue"),
-        meta: { title: "代理设置", icon: "GlobalOutlined" },
+        path: "image",
+        name: "ImageList",
+        component: () => import("../views/crawler/image/index.vue"),
+        meta: { title: "图片列表", icon: "PictureOutlined" },
       },
     ],
   },

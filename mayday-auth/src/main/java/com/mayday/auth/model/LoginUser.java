@@ -69,7 +69,16 @@ public class LoginUser implements UserDetails {
      * 用户名
      * <p>独立存储，避免 Jackson 序列化问题</p>
      */
+    /**
+     * 用户名
+     * <p>独立存储，避免 Jackson 序列化问题</p>
+     */
     private String username;
+
+    /**
+     * 头像地址
+     */
+    private String avatar;
 
     /**
      * 当前登录部门ID
@@ -147,6 +156,7 @@ public class LoginUser implements UserDetails {
         this.sysUser = sysUser;
         this.userId = sysUser.getId();
         this.username = sysUser.getUsername();
+        this.avatar = sysUser.getAvatar();
         this.permissions = permissions;
         this.roles = roles;
         this.currentDeptId = currentDeptId;

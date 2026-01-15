@@ -7,6 +7,7 @@ export interface LoginResult {
   token?: string;
   userId?: number;
   username?: string;
+  avatar?: string;
   currentDeptId?: number;
   permissions?: string[];
   deptList?: DeptOption[];

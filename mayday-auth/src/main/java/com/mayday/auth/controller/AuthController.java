@@ -133,6 +133,7 @@ public class AuthController {
         LoginVo vo = new LoginVo();
         vo.setUserId(loginUser.getUserId());
         vo.setUsername(loginUser.getUsername());
+        vo.setAvatar(loginUser.getAvatar());
         vo.setCurrentDeptId(loginUser.getCurrentDeptId());
         vo.setPermissions(new java.util.ArrayList<>(loginUser.getPermissions()));
         

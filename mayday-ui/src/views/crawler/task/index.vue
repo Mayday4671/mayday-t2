@@ -38,6 +38,9 @@
             <div class="status-cell">
               <a-space direction="vertical" size="small">
                 <a-tag :color="getStatusColor(record.status)">
+                  <template v-if="record.status === 'RUNNING'">
+                    <LoadingOutlined spin style="margin-right: 4px" />
+                  </template>
                   {{ getStatusText(record.status) }}
                 </a-tag>
                 <a-progress
@@ -56,6 +59,18 @@
                 </span>
               </a-space>
             </div>
+          </template>
+
+          <!-- 运行时间列 -->
+          <template v-if="column.key === 'runTime'">
+            <span v-if="record.status === 'RUNNING' && record.startTime">
+              <ClockCircleOutlined style="margin-right: 4px; color: #1890ff" />
+              {{ formatRunTime(record.startTime) }}
+            </span>
+            <span v-else-if="record.startTime && record.endTime">
+              {{ formatDuration(record.startTime, record.endTime) }}
+            </span>
+            <span v-else style="color: #999">-</span>
           </template>
 
           <template v-if="column.key === 'action'">
@@ -418,7 +433,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, nextTick, onUnmounted } from "vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, LoadingOutlined, ClockCircleOutlined } from "@ant-design/icons-vue";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import {
@@ -458,6 +473,12 @@ const columns = [
   },
   { title: "类型", dataIndex: "crawlType", key: "crawlType", width: 100 },
   { title: "状态", dataIndex: "status", key: "status", width: 180 },
+  {
+    title: "运行时间",
+    dataIndex: "runTime",
+    key: "runTime",
+    width: 130,
+  },
   {
     title: "成功数",
     dataIndex: "successCount",
@@ -499,6 +520,44 @@ const getStatusText = (status: string) => {
   return map[status] || status;
 };
 
+/**
+ * 格式化运行时间（从startTime到现在）
+ */
+const formatRunTime = (startTime: string | Date) => {
+  if (!startTime) return "-";
+  const start = new Date(startTime).getTime();
+  // 使用currentTime.value触发响应式更新
+  const now = currentTime.value;
+  const diff = Math.floor((now - start) / 1000);
+  return formatSeconds(diff);
+};
+
+/**
+ * 格式化时间差（startTime到endTime）
+ */
+const formatDuration = (startTime: string | Date, endTime: string | Date) => {
+  if (!startTime || !endTime) return "-";
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+  const diff = Math.floor((end - start) / 1000);
+  return formatSeconds(diff);
+};
+
+/**
+ * 将秒数格式化为 HH:MM:SS 格式
+ */
+const formatSeconds = (totalSeconds: number) => {
+  if (totalSeconds < 0) return "00:00:00";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [
+    hours.toString().padStart(2, "0"),
+    minutes.toString().padStart(2, "0"),
+    seconds.toString().padStart(2, "0"),
+  ].join(":");
+};
+
 // 弹窗相关
 const dialogVisible = ref(false);
 const dialogType = ref<"add" | "edit">("add");
@@ -512,16 +571,116 @@ const formRules = {
   startUrls: [{ required: true, message: "请输入起始URL", trigger: "blur" }],
 };
 
-// 自动刷新
-let timer: any = null;
+// SSE任务状态订阅
+let eventSource: EventSource | null = null;
+// 运行时间动态更新定时器
+let runningTimer: any = null;
+const currentTime = ref(Date.now());
+
+/**
+ * 初始化SSE连接
+ */
+const initSseConnection = () => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    console.warn("[SSE] 未登录，无法订阅任务状态");
+    return;
+  }
+
+  // 构建SSE URL，使用与axios相同的后端地址
+  // EventSource不支持自定义header，通过query参数传递token
+  const baseUrl = "http://localhost:9002";
+  const sseUrl = `${baseUrl}/crawlerTask/sse/subscribe?token=${encodeURIComponent(token)}`;
+
+  console.log("[SSE] 开始订阅任务状态:", sseUrl);
+  eventSource = new EventSource(sseUrl);
+
+  // 连接成功
+  eventSource.addEventListener("connected", (event: MessageEvent) => {
+    console.log("[SSE] 连接成功:", event.data);
+  });
+
+  // 任务启动
+  eventSource.addEventListener("task.started", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 任务进度
+  eventSource.addEventListener("task.progress", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 任务完成
+  eventSource.addEventListener("task.completed", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 任务停止
+  eventSource.addEventListener("task.stopped", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 任务错误
+  eventSource.addEventListener("task.error", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 任务暂停
+  eventSource.addEventListener("task.paused", (event: MessageEvent) => {
+    handleTaskEvent(JSON.parse(event.data));
+  });
+
+  // 连接错误
+  eventSource.onerror = (error) => {
+    console.error("[SSE] 连接错误:", error);
+    // 尝试重连
+    setTimeout(() => {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      initSseConnection();
+    }, 5000);
+  };
+};
+
+/**
+ * 处理SSE任务事件，更新列表中对应任务的状态
+ */
+const handleTaskEvent = (taskData: any) => {
+  const index = dataList.value.findIndex((item: any) => item.id === taskData.id || item.id === String(taskData.id));
+  if (index !== -1) {
+    // 更新已有任务的状态
+    const existingTask = dataList.value[index];
+    Object.assign(existingTask, {
+      status: taskData.status,
+      totalUrls: taskData.totalUrls,
+      crawledUrls: taskData.crawledUrls,
+      successCount: taskData.successCount,
+      errorCount: taskData.errorCount,
+      startTime: taskData.startTime,
+      endTime: taskData.endTime,
+      errorMsg: taskData.errorMsg,
+    });
+  }
+  // 如果任务不在当前列表中，可能需要刷新列表
+};
 
 onMounted(() => {
   loadData();
-  timer = setInterval(loadData, 5000); // 简单轮询刷新状态
+  initSseConnection();
+  // 每秒更新一次当前时间，用于动态显示运行时间
+  runningTimer = setInterval(() => {
+    currentTime.value = Date.now();
+  }, 1000);
 });
 
 onUnmounted(() => {
-  if (timer) clearInterval(timer);
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (runningTimer) clearInterval(runningTimer);
 });
 
 const loadData = async () => {
@@ -645,11 +804,24 @@ const handleSubmit = async () => {
 
 // 任务控制
 const handleStartTask = async (record: any) => {
+  // 保存原始状态用于回滚
+  const originalStatus = record.status;
+  const originalStartTime = record.startTime;
+  
   try {
+    // 立即更新本地状态，提供即时反馈
+    record.status = "RUNNING";
+    record.startTime = new Date().toISOString();
+    record.crawledUrls = 0;
+    record.totalUrls = 0;
+    
     await fetchStartTask(record.id);
     message.success("任务已启动");
-    loadData();
+    // SSE会自动推送状态更新，无需手动刷新
   } catch (e: any) {
+    // 恢复原状态
+    record.status = originalStatus;
+    record.startTime = originalStartTime;
     message.error(e.message || "启动失败");
   }
 };

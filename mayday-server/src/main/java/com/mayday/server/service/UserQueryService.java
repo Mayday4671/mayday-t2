@@ -91,6 +91,9 @@ public class UserQueryService {
             // 必须返回原始 ID，否则前端编辑时 id 为 undefined
             item.put("id", user.getId()); 
             item.put("username", user.getUsername());
+            item.put("nickname", user.getNickname());
+            item.put("email", user.getEmail());
+            item.put("phone", user.getPhone());
             // 返回原始状态编码，由前端控制渲染（颜色/标签）
             item.put("status", user.getStatus());
             

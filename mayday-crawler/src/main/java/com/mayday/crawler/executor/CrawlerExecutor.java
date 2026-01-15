@@ -40,6 +40,7 @@ import javax.net.ssl.*;
 import java.security.cert.X509Certificate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.mayday.common.sse.SsePublisher;
 
 /**
  * 爬虫执行器
@@ -53,7 +54,13 @@ public class CrawlerExecutor
     private final ICrawlerImageService imageService;
     private final ICrawlerLogService logService;
     private final ICrawlerProxyService proxyService;
+    private final SsePublisher ssePublisher;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    /**
+     * SSE主题：任务状态
+     */
+    private static final String SSE_TOPIC_TASK_STATUS = "crawler-task-status";
 
     /**
      * 图片存储根目录（兼容两种配置键）
@@ -67,13 +74,15 @@ public class CrawlerExecutor
                           ICrawlerArticleService articleService,
                           ICrawlerImageService imageService,
                           ICrawlerLogService logService,
-                          ICrawlerProxyService proxyService)
+                          ICrawlerProxyService proxyService,
+                          SsePublisher ssePublisher)
     {
         this.taskService = taskService;
         this.articleService = articleService;
         this.imageService = imageService;
         this.logService = logService;
         this.proxyService = proxyService;
+        this.ssePublisher = ssePublisher;
     }
     
     // 任务执行状态管理
@@ -162,6 +171,9 @@ public class CrawlerExecutor
             totalUrls.set(urlQueue.size());
             task.setTotalUrls(totalUrls.get());
             taskService.updateById(task);
+            
+            // 立即推送任务开始状态（确保前端即时收到"运行中"状态）
+            publishTaskStatus(task, "RUNNING");
             
             // 获取基础URL（用于判断是否在同一站点）
             String baseUrl = extractBaseUrl(startUrls.getFirst());
@@ -261,8 +273,8 @@ public class CrawlerExecutor
                             
                             crawledUrls.incrementAndGet();
                             
-                            // 更新任务进度
-                            if (crawledUrls.get() % 10 == 0)
+                            // 更新任务进度（每5个URL推送一次）
+                            if (crawledUrls.get() % 5 == 0)
                             {
                                 updateTaskProgress(taskId, totalUrls.get(), crawledUrls.get(), 
                                         successCount.get(), errorCount.get());
@@ -3791,6 +3803,9 @@ public class CrawlerExecutor
                     task.setEndTime(new Date());
                 }
                 taskService.updateById(task);
+                
+                // SSE推送状态变化
+                publishTaskStatus(task, status);
             }
         }
         catch (Exception e)
@@ -3815,12 +3830,85 @@ public class CrawlerExecutor
                 task.setSuccessCount(successCount);
                 task.setErrorCount(errorCount);
                 taskService.updateById(task);
+                
+                // SSE推送进度更新
+                publishTaskProgress(task);
             }
         }
         catch (Exception e)
         {
             log.error("更新任务进度失败: {}", taskId, e);
         }
+    }
+    
+    /**
+     * SSE推送任务状态变化
+     */
+    private void publishTaskStatus(CrawlerTaskEntity task, String status)
+    {
+        try
+        {
+            Map<String, Object> data = buildTaskStatusData(task);
+            String eventName = switch (status) {
+                case "RUNNING" -> "task.started";
+                case "COMPLETED" -> "task.completed";
+                case "STOPPED" -> "task.stopped";
+                case "ERROR" -> "task.error";
+                case "PAUSED" -> "task.paused";
+                default -> "task.status";
+            };
+            ssePublisher.publish(SSE_TOPIC_TASK_STATUS, eventName, data);
+        }
+        catch (Exception e)
+        {
+            log.debug("SSE推送任务状态失败: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * SSE推送任务进度更新
+     */
+    private void publishTaskProgress(CrawlerTaskEntity task)
+    {
+        try
+        {
+            Map<String, Object> data = buildTaskStatusData(task);
+            ssePublisher.publish(SSE_TOPIC_TASK_STATUS, "task.progress", data);
+        }
+        catch (Exception e)
+        {
+            log.debug("SSE推送任务进度失败: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * 构建任务状态数据
+     */
+    private Map<String, Object> buildTaskStatusData(CrawlerTaskEntity task)
+    {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id", task.getId());
+        data.put("taskName", task.getTaskName());
+        data.put("status", task.getStatus());
+        data.put("totalUrls", task.getTotalUrls() != null ? task.getTotalUrls() : 0);
+        data.put("crawledUrls", task.getCrawledUrls() != null ? task.getCrawledUrls() : 0);
+        data.put("successCount", task.getSuccessCount() != null ? task.getSuccessCount() : 0);
+        data.put("errorCount", task.getErrorCount() != null ? task.getErrorCount() : 0);
+        data.put("startTime", task.getStartTime());
+        data.put("endTime", task.getEndTime());
+        data.put("errorMsg", task.getErrorMsg());
+        
+        // 计算进度百分比
+        Integer totalUrls = task.getTotalUrls();
+        Integer crawledUrls = task.getCrawledUrls();
+        if (totalUrls != null && totalUrls > 0 && crawledUrls != null) {
+            double progress = (double) crawledUrls / totalUrls * 100;
+            data.put("progress", Math.round(progress * 100.0) / 100.0);
+        } else {
+            data.put("progress", 0.0);
+        }
+        
+        return data;
     }
     
     /**

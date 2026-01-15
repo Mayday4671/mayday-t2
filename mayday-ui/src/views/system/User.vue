@@ -61,6 +61,15 @@
             placeholder="请输入用户名"
           />
         </a-form-item>
+        <a-form-item label="昵称">
+          <a-input v-model:value="formData.nickname" placeholder="请输入昵称" />
+        </a-form-item>
+        <a-form-item label="手机号">
+          <a-input v-model:value="formData.phone" placeholder="请输入手机号" />
+        </a-form-item>
+        <a-form-item label="邮箱">
+          <a-input v-model:value="formData.email" placeholder="请输入邮箱" />
+        </a-form-item>
         <a-form-item label="密码" v-if="!formData.id">
           <a-input-password
             v-model:value="formData.password"
@@ -140,6 +149,9 @@ const selectedRoleIds = ref<number[]>([]);
 const columns = [
   { title: "ID", dataIndex: "id", key: "id", width: 60 },
   { title: "用户名", dataIndex: "username", key: "username", width: 120 },
+  { title: "昵称", dataIndex: "nickname", key: "nickname", width: 120 },
+  { title: "手机号", dataIndex: "phone", key: "phone", width: 120 },
+  { title: "邮箱", dataIndex: "email", key: "email", width: 180 },
   { title: "状态", dataIndex: "status", key: "status", width: 80 },
   { title: "操作", key: "action", width: 200 },
 ];

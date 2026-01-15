@@ -6,7 +6,7 @@
         <div class="header-left">
           <h2 class="page-title">
             <PictureOutlined />
-            图片管理
+            图片列表
           </h2>
           <a-tag color="blue">共 {{ pagination.total }} 篇文章</a-tag>
         </div>

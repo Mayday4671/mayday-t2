@@ -52,6 +52,26 @@ public class SysUser extends BaseEntity {
     private String password;
 
     /**
+     * 用户昵称
+     */
+    private String nickname;
+
+    /**
+     * 用户头像URL
+     */
+    private String avatar;
+
+    /**
+     * 用户邮箱
+     */
+    private String email;
+
+    /**
+     * 手机号码
+     */
+    private String phone;
+
+    /**
      * 帐号状态
      * <ul>
      *   <li>0: 正常</li>

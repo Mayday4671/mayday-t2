@@ -1,6 +1,6 @@
 <template>
   <div class="page-container">
-    <a-card title="爬取文章管理" :bordered="false">
+    <a-card title="文章列表" :bordered="false">
       <template #extra>
         <a-space>
           <a-input-search

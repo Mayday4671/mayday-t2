@@ -48,6 +48,11 @@ public class LoginVo {
     private String username;
 
     /**
+     * 头像地址
+     */
+    private String avatar;
+
+    /**
      * 当前部门ID
      */
     private Long currentDeptId;

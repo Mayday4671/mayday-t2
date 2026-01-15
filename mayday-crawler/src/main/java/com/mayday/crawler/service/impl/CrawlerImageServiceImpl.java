@@ -1,16 +1,20 @@
 package com.mayday.crawler.service.impl;
 
 import com.mayday.common.util.StringUtils;
+import com.mayday.crawler.mapper.CrawlerArticleMapper;
 import com.mayday.crawler.mapper.CrawlerImageMapper;
 import com.mayday.crawler.modl.dto.CrawlerImageArticleCoverDTO;
 import com.mayday.crawler.modl.dto.CrawlerImageArticleCoverQueryReq;
 import com.mayday.crawler.modl.dto.CrawlerImageQueryReq;
+import com.mayday.crawler.modl.entity.CrawlerArticleEntity;
 import com.mayday.crawler.modl.entity.CrawlerImageEntity;
 import com.mayday.crawler.modl.vo.CrawlerImageVo;
 import com.mayday.crawler.service.ICrawlerImageService;
+import com.mayday.crawler.util.CrawlerDataScopeUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,22 +23,29 @@ import org.springframework.stereotype.Service;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static com.mayday.crawler.modl.entity.table.CrawlerArticleEntityTableDef.CRAWLER_ARTICLE_ENTITY;
 import static com.mayday.crawler.modl.entity.table.CrawlerImageEntityTableDef.CRAWLER_IMAGE_ENTITY;
-
-import com.mayday.crawler.util.CrawlerDataScopeUtil;
 
 /**
  * 图片服务实现
+ * 
+ * 使用 MyBatis-Flex QueryWrapper API 实现所有查询逻辑，
+ * 保持类型安全和流畅的链式调用。
  *
  * @author Antigravity
  * @since 1.0.0
  */
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, CrawlerImageEntity> implements ICrawlerImageService {
+
+    private final CrawlerArticleMapper articleMapper;
 
     /**
      * 图片存储根目录（兼容两种配置键）
@@ -44,6 +55,7 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
 
     @Override
     public Page<CrawlerImageEntity> queryList(CrawlerImageQueryReq req) {
+        // 使用 MyBatis-Flex QueryWrapper 构建查询条件
         QueryWrapper wrapper = QueryWrapper.create()
                 .where(CRAWLER_IMAGE_ENTITY.ID.eq(req.getId()).when(req.getId() != null))
                 .and(CRAWLER_IMAGE_ENTITY.TASK_ID.eq(req.getTaskId()).when(req.getTaskId() != null))
@@ -53,7 +65,6 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
                 .orderBy(CRAWLER_IMAGE_ENTITY.CREATE_TIME, false);
 
         // 注：图片权限通过关联的文章表过滤，此处不需要直接过滤
-
         return page(new Page<>(req.getCurrent(), req.getPageSize()), wrapper);
     }
 
@@ -61,7 +72,6 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
     public Page<CrawlerImageArticleCoverDTO> queryArticleCoverPage(CrawlerImageArticleCoverQueryReq req) {
         long current = req.getCurrent() <= 0 ? 1 : req.getCurrent();
         long pageSize = req.getPageSize() <= 0 ? 10 : req.getPageSize();
-        long offset = (current - 1) * pageSize;
 
         // 获取数据权限过滤参数
         String dataScope = CrawlerDataScopeUtil.getDataScope();
@@ -74,41 +84,162 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
             // 本部门或本部门及以下
             deptId = CrawlerDataScopeUtil.getCurrentDeptId();
         }
-        // dataScope=1 (全部) 或 dataScope=2 (自定义) 时，createBy和deptId都为null，不过滤
 
-        List<CrawlerImageArticleCoverDTO> records =
-                mapper.selectArticleCoverPage(offset, pageSize, req.getTaskId(), req.getTitle(), createBy, deptId);
+        // Step 1: 使用 MyBatis-Flex QueryWrapper 查询有图片的文章列表
+        QueryWrapper articleWrapper = buildArticleQueryWrapper(req.getTaskId(), req.getTitle(), createBy, deptId);
         
+        // 分页查询文章
+        Page<CrawlerArticleEntity> articlePage = articleMapper.paginate(
+                new Page<>(current, pageSize), 
+                articleWrapper
+        );
+
+        if (articlePage.getRecords() == null || articlePage.getRecords().isEmpty()) {
+            Page<CrawlerImageArticleCoverDTO> emptyPage = new Page<>(current, pageSize);
+            emptyPage.setTotalRow(0);
+            emptyPage.setRecords(new ArrayList<>());
+            return emptyPage;
+        }
+
+        // Step 2: 批量获取这些文章的封面图片（每篇文章的第一张图片）
+        List<Long> articleIds = articlePage.getRecords().stream()
+                .map(CrawlerArticleEntity::getId)
+                .collect(Collectors.toList());
+
+        Map<Long, CrawlerImageEntity> coverMap = getCoverImagesForArticles(articleIds);
+
+        // Step 3: 组装返回结果
+        List<CrawlerImageArticleCoverDTO> records = articlePage.getRecords().stream()
+                .map(article -> buildCoverDTO(article, coverMap.get(article.getId())))
+                .collect(Collectors.toList());
+
         // 处理封面图片本地路径
-        if (records != null && !records.isEmpty()) {
-            Path basePath = Paths.get(imageBasePath).toAbsolutePath().normalize();
-            for (CrawlerImageArticleCoverDTO dto : records) {
-                if ("SUCCESS".equals(dto.getCoverDownloadStatus()) 
-                        && dto.getCoverFilePath() != null 
-                        && dto.getCoverFileName() != null) {
-                    try {
-                        Path filePath = Paths.get(dto.getCoverFilePath()).toAbsolutePath().normalize();
-                        String relativePath;
-                        if (filePath.startsWith(basePath)) {
-                            relativePath = basePath.relativize(filePath).toString().replace("\\", "/");
-                        } else {
-                            relativePath = filePath.getFileName().toString();
-                        }
-                        String displayUrl = "/crawler-images/" + relativePath.replace("\\", "/") + (relativePath.endsWith(dto.getCoverFileName()) ? "" : "/" + dto.getCoverFileName());
-                        dto.setCoverUrl(displayUrl);
-                    } catch (Exception e) {
-                        // ignore
+        processCoverLocalPaths(records);
+
+        Page<CrawlerImageArticleCoverDTO> page = new Page<>(current, pageSize);
+        page.setTotalRow(articlePage.getTotalRow());
+        page.setRecords(records);
+        return page;
+    }
+
+    /**
+     * 构建文章查询条件（只查询有图片的文章）
+     * 使用 MyBatis-Flex QueryWrapper 实现类型安全的条件构建
+     */
+    private QueryWrapper buildArticleQueryWrapper(Long taskId, String title, Long createBy, Long deptId) {
+        return QueryWrapper.create()
+                .from(CRAWLER_ARTICLE_ENTITY)
+                .where(CRAWLER_ARTICLE_ENTITY.TASK_ID.eq(taskId).when(taskId != null))
+                .and(CRAWLER_ARTICLE_ENTITY.TITLE.like(title).when(StringUtils.isNotEmpty(title)))
+                .and(CRAWLER_ARTICLE_ENTITY.CREATE_BY.eq(createBy).when(createBy != null))
+                .and(CRAWLER_ARTICLE_ENTITY.DEPT_ID.eq(deptId).when(deptId != null))
+                // 使用 exists 方法正确构建子查询
+                .and("EXISTS (SELECT 1 FROM crawler_image WHERE crawler_image.article_id = crawler_article.id)")
+                .orderBy(CRAWLER_ARTICLE_ENTITY.CREATE_TIME, false);
+    }
+
+    /**
+     * 批量获取文章的封面图片（每篇文章的第一张图片）
+     * 使用 MyBatis-Flex 流畅API分组查询
+     */
+    private Map<Long, CrawlerImageEntity> getCoverImagesForArticles(List<Long> articleIds) {
+        if (articleIds == null || articleIds.isEmpty()) {
+            return Map.of();
+        }
+
+        // 查询所有相关图片
+        QueryWrapper wrapper = QueryWrapper.create()
+                .from(CRAWLER_IMAGE_ENTITY)
+                .where(CRAWLER_IMAGE_ENTITY.ARTICLE_ID.in(articleIds))
+                .orderBy(CRAWLER_IMAGE_ENTITY.ID, true);
+
+        List<CrawlerImageEntity> allImages = list(wrapper);
+
+        // 按文章ID分组，取每组的第一张图片作为封面
+        return allImages.stream()
+                .collect(Collectors.groupingBy(
+                        CrawlerImageEntity::getArticleId,
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> list.isEmpty() ? null : list.get(0)
+                        )
+                ));
+    }
+
+    /**
+     * 构建封面DTO
+     */
+    private CrawlerImageArticleCoverDTO buildCoverDTO(CrawlerArticleEntity article, CrawlerImageEntity coverImage) {
+        CrawlerImageArticleCoverDTO dto = new CrawlerImageArticleCoverDTO();
+        dto.setArticleId(article.getId());
+        dto.setTaskId(article.getTaskId());
+        dto.setArticleTitle(article.getTitle());
+        dto.setArticleUrl(article.getUrl());
+        dto.setSourceSite(article.getSourceSite());
+        dto.setPublishTime(article.getPublishTime());
+        dto.setArticleCreateTime(article.getCreateTime());
+
+        if (coverImage != null) {
+            dto.setCoverUrl(coverImage.getUrl());
+            dto.setCoverFilePath(coverImage.getFilePath());
+            dto.setCoverFileName(coverImage.getFileName());
+            dto.setCoverDownloadStatus(coverImage.getDownloadStatus());
+        }
+
+        // 统计该文章下的图片数量
+        dto.setImageCount(countImagesByArticleId(article.getId()));
+        return dto;
+    }
+
+    /**
+     * 统计文章下的图片数量
+     */
+    private Long countImagesByArticleId(Long articleId) {
+        if (articleId == null) {
+            return 0L;
+        }
+        QueryWrapper wrapper = QueryWrapper.create()
+                .from(CRAWLER_IMAGE_ENTITY)
+                .where(CRAWLER_IMAGE_ENTITY.ARTICLE_ID.eq(articleId));
+        return count(wrapper);
+    }
+
+    /**
+     * 处理封面图片本地路径
+     * coverFilePath 是目录路径，coverFileName 是文件名，需要拼接生成完整的本地访问URL
+     */
+    private void processCoverLocalPaths(List<CrawlerImageArticleCoverDTO> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        Path basePath = Paths.get(imageBasePath).toAbsolutePath().normalize();
+        for (CrawlerImageArticleCoverDTO dto : records) {
+            if ("SUCCESS".equals(dto.getCoverDownloadStatus()) 
+                    && dto.getCoverFilePath() != null 
+                    && dto.getCoverFileName() != null) {
+                try {
+                    // coverFilePath 是目录路径
+                    Path dirPath = Paths.get(dto.getCoverFilePath()).toAbsolutePath().normalize();
+                    // 构建完整文件路径
+                    Path fullFilePath = dirPath.resolve(dto.getCoverFileName()).normalize();
+                    
+                    String displayUrl;
+                    if (fullFilePath.startsWith(basePath)) {
+                        // 计算相对于基础路径的相对路径
+                        String relativePath = basePath.relativize(fullFilePath).toString().replace("\\", "/");
+                        displayUrl = "/crawler-images/" + relativePath;
+                    } else {
+                        // 路径不在基础目录内，使用文件名
+                        displayUrl = "/crawler-images/" + dto.getCoverFileName();
                     }
+                    dto.setCoverUrl(displayUrl);
+                    log.debug("[COVER] 封面图片本地URL: articleId={}, displayUrl={}", dto.getArticleId(), displayUrl);
+                } catch (Exception e) {
+                    log.warn("[COVER] 处理封面路径失败: articleId={}, filePath={}, fileName={}, error={}", 
+                            dto.getArticleId(), dto.getCoverFilePath(), dto.getCoverFileName(), e.getMessage());
                 }
             }
         }
-
-        Long total = mapper.countArticleCover(req.getTaskId(), req.getTitle(), createBy, deptId);
-
-        Page<CrawlerImageArticleCoverDTO> page = new Page<>(current, pageSize);
-        page.setTotalRow(total == null ? 0 : total);
-        page.setRecords(records);
-        return page;
     }
 
     @Override
@@ -116,7 +247,12 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
         if (articleId == null) {
             return List.of();
         }
-        return mapper.selectByArticleId(articleId);
+        // 使用 MyBatis-Flex QueryWrapper 替代原来的 @Select 方法
+        QueryWrapper wrapper = QueryWrapper.create()
+                .from(CRAWLER_IMAGE_ENTITY)
+                .where(CRAWLER_IMAGE_ENTITY.ARTICLE_ID.eq(articleId))
+                .orderBy(CRAWLER_IMAGE_ENTITY.ID, true);
+        return list(wrapper);
     }
 
     @Override
@@ -236,16 +372,19 @@ public class CrawlerImageServiceImpl extends ServiceImpl<CrawlerImageMapper, Cra
                 && entity.getFileName() != null) {
             try {
                 Path basePath = Paths.get(imageBasePath).toAbsolutePath().normalize();
-                Path filePath = Paths.get(entity.getFilePath()).toAbsolutePath().normalize();
+                // filePath 是目录路径
+                Path dirPath = Paths.get(entity.getFilePath()).toAbsolutePath().normalize();
+                // 构建完整文件路径
+                Path fullFilePath = dirPath.resolve(entity.getFileName()).normalize();
 
-                String relativePath;
-                if (filePath.startsWith(basePath)) {
-                    relativePath = basePath.relativize(filePath).toString().replace("\\", "/");
+                String displayUrl;
+                if (fullFilePath.startsWith(basePath)) {
+                    String relativePath = basePath.relativize(fullFilePath).toString().replace("\\", "/");
+                    displayUrl = "/crawler-images/" + relativePath;
                 } else {
-                    relativePath = filePath.getFileName().toString();
+                    displayUrl = "/crawler-images/" + entity.getFileName();
                 }
-
-                vo.setDisplayUrl("/crawler-images/" + relativePath.replace("\\", "/") + (relativePath.endsWith(entity.getFileName()) ? "" : "/" + entity.getFileName()));
+                vo.setDisplayUrl(displayUrl);
             } catch (Exception e) {
                 log.warn("解析图片路径失败,使用原始URL: filePath={}, fileName={}, error={}",
                         entity.getFilePath(), entity.getFileName(), e.getMessage());

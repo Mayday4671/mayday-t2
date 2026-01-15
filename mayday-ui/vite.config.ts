@@ -11,6 +11,11 @@ export default defineConfig({
         target: "http://localhost:9002",
         changeOrigin: true,
       },
+      // 代理上传文件静态资源
+      "/upload": {
+        target: "http://localhost:9002",
+        changeOrigin: true,
+      },
     },
   },
 });

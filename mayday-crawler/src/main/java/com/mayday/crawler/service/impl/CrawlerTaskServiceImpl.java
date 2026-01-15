@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import static com.mayday.crawler.modl.entity.table.CrawlerTaskEntityTableDef.CRAWLER_TASK_ENTITY;
 
 import com.mayday.crawler.util.CrawlerDataScopeUtil;
+import com.mayday.common.sse.SsePublisher;
 
 /**
  * 爬虫任务服务实现
@@ -37,11 +38,15 @@ import com.mayday.crawler.util.CrawlerDataScopeUtil;
 @Service
 public class CrawlerTaskServiceImpl extends ServiceImpl<CrawlerTaskMapper, CrawlerTaskEntity> implements ICrawlerTaskService {
 
+    private static final String SSE_TOPIC_TASK_STATUS = "crawler-task-status";
+    
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final CrawlerExecutor crawlerExecutor;
+    private final SsePublisher ssePublisher;
 
-    public CrawlerTaskServiceImpl(@Lazy CrawlerExecutor crawlerExecutor) {
+    public CrawlerTaskServiceImpl(@Lazy CrawlerExecutor crawlerExecutor, SsePublisher ssePublisher) {
         this.crawlerExecutor = crawlerExecutor;
+        this.ssePublisher = ssePublisher;
     }
 
     @Override
@@ -159,11 +164,38 @@ public class CrawlerTaskServiceImpl extends ServiceImpl<CrawlerTaskMapper, Crawl
         boolean updated = updateById(entity);
 
         if (updated) {
+            // 立即推送"运行中"状态，确保前端即时收到
+            publishTaskStatus(entity, "task.started");
+            
             crawlerExecutor.ensureTaskNotRunning(id);
             crawlerExecutor.executeTask(id);
         }
 
         return updated;
+    }
+    
+    /**
+     * 推送任务状态SSE事件
+     */
+    private void publishTaskStatus(CrawlerTaskEntity task, String eventName) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", task.getId());
+            data.put("taskName", task.getTaskName());
+            data.put("status", task.getStatus());
+            data.put("totalUrls", task.getTotalUrls() != null ? task.getTotalUrls() : 0);
+            data.put("crawledUrls", task.getCrawledUrls() != null ? task.getCrawledUrls() : 0);
+            data.put("successCount", task.getSuccessCount() != null ? task.getSuccessCount() : 0);
+            data.put("errorCount", task.getErrorCount() != null ? task.getErrorCount() : 0);
+            data.put("startTime", task.getStartTime());
+            data.put("endTime", task.getEndTime());
+            data.put("errorMsg", task.getErrorMsg());
+            data.put("progress", 0.0);
+            
+            ssePublisher.publish(SSE_TOPIC_TASK_STATUS, eventName, data);
+        } catch (Exception e) {
+            // 忽略SSE推送失败
+        }
     }
 
     @Override

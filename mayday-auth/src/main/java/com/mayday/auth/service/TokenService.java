@@ -273,12 +273,28 @@ public class TokenService {
         log.info("用户 {} 的 {} 个 Token 已删除（权限变更）", userId, deletedCount);
     }
 
+    /**
+     * 从请求中获取 Token
+     * <p>
+     * 优先从 Authorization 请求头获取，如果没有则从 query 参数 'token' 获取。
+     * 后者用于支持 SSE (Server-Sent Events) 的 EventSource，因为它不支持自定义请求头。
+     * </p>
+     */
     private String getToken(HttpServletRequest request) {
+        // 优先从 Authorization 请求头获取
         String token = request.getHeader(TOKEN_HEADER);
         if (StrUtil.isNotEmpty(token) && token.startsWith(TOKEN_PREFIX)) {
             token = token.substring(TOKEN_PREFIX.length());
+            return token;
         }
-        return token;
+        
+        // 如果请求头没有，从 query 参数获取（用于 SSE EventSource）
+        token = request.getParameter("token");
+        if (StrUtil.isNotEmpty(token)) {
+            return token;
+        }
+        
+        return null;
     }
 
     private String createJwtToken(Map<String, Object> claims) {
