@@ -55,6 +55,7 @@ public class SecurityConfig {
             "/register",
             "/captcha/**",
             "/debug/**",
+            "/dashboard/**",       // 仪表盘统计接口
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/doc.html",
