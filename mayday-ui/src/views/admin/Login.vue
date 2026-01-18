@@ -94,7 +94,7 @@ const handleLogin = async () => {
     } else {
       localStorage.removeItem("deptList");
     }
-    router.push("/home");
+    router.push("/admin");
   } catch (e: any) {
     errorMsg.value = e.message || "登录失败";
   } finally {

@@ -70,4 +70,12 @@ public class CrawlerArticleEntity {
 
     @Schema(description = "所属部门ID")
     private Long deptId;
+
+    @Schema(description = "封面图URL")
+    @com.mybatisflex.annotation.Column(ignore = true)
+    private String coverImage;
+
+    @Schema(description = "文章相关图片列表")
+    @com.mybatisflex.annotation.Column(ignore = true)
+    private java.util.List<String> imageList;
 }

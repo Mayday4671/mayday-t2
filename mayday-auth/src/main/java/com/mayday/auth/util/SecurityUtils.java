@@ -64,7 +64,16 @@ public class SecurityUtils {
      */
     public static LoginUser getLoginUser() {
         try {
-            return (LoginUser) getAuthentication().getPrincipal();
+            Authentication authentication = getAuthentication();
+            if (authentication == null) {
+                return null;
+            }
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof LoginUser) {
+                return (LoginUser) principal;
+            }
+            // Handle anonymous user (principal is String "anonymousUser")
+            return null;
         } catch (Exception e) {
             log.error("获取用户信息异常", e);
             throw new RuntimeException("获取用户信息异常", e);
@@ -88,7 +97,8 @@ public class SecurityUtils {
      */
     public static String getUsername() {
         try {
-            return getLoginUser().getUsername();
+            LoginUser loginUser = getLoginUser();
+            return loginUser != null ? loginUser.getUsername() : null;
         } catch (Exception e) {
             log.error("获取用户账户异常", e);
             throw new RuntimeException("获取用户账户异常", e);
@@ -103,7 +113,8 @@ public class SecurityUtils {
      */
     public static Long getUserId() {
         try {
-            return getLoginUser().getUserId();
+            LoginUser loginUser = getLoginUser();
+            return loginUser != null ? loginUser.getUserId() : null;
         } catch (Exception e) {
             log.error("获取用户ID异常", e);
             throw new RuntimeException("获取用户ID异常", e);
@@ -122,7 +133,8 @@ public class SecurityUtils {
      */
     public static Long getDeptId() {
         try {
-            return getLoginUser().getCurrentDeptId();
+            LoginUser loginUser = getLoginUser();
+            return loginUser != null ? loginUser.getCurrentDeptId() : null;
         } catch (Exception e) {
             log.error("获取部门ID异常", e);
             throw new RuntimeException("获取部门ID异常", e);

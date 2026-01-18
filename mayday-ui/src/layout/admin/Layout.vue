@@ -14,7 +14,7 @@
       <SideMenu :menus="menus" :collapsed="collapsed" />
     </a-layout-sider>
 
-    <a-layout>
+    <a-layout class="layout-right">
       <!-- 顶部导航 -->
       <a-layout-header class="layout-header">
         <div class="header-left">
@@ -66,7 +66,7 @@
               </a-space>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="profile" @click="router.push('/profile')">
+                  <a-menu-item key="profile" @click="router.push('/admin/profile')">
                     <UserOutlined /> 个人中心
                   </a-menu-item>
                   <a-menu-divider />
@@ -208,7 +208,16 @@ const loadUserInfo = async () => {
 const loadMenus = async () => {
   try {
     const res = await request.get("/menu/getRouters");
-    menus.value = (res as any) || [];
+    const rawMenus = (res as any) || [];
+    // 修正菜单路径，确保包含 /admin 前缀
+    menus.value = rawMenus.map((m: any) => {
+      // 复制一份，避免修改原对象
+      const menu = { ...m };
+      if (menu.path && !menu.path.startsWith("/admin") && !menu.path.startsWith("http")) {
+        menu.path = `/admin${menu.path.startsWith("/") ? "" : "/"}${menu.path}`;
+      }
+      return menu;
+    });
   } catch (e) {
     console.error("加载菜单失败:", e);
   }
@@ -318,6 +327,12 @@ const handleLogout = async () => {
   background: #001529;
 }
 
+.layout-right {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 .logo {
   height: 64px;
   display: flex;
@@ -363,8 +378,8 @@ const handleLogout = async () => {
 }
 
 .layout-content {
-  margin: 0 16px 16px;
-  padding: 24px;
+  margin: 12px;
+  padding: 20px;
   background: white;
   min-height: 280px;
   border-radius: 8px;

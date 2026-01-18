@@ -51,6 +51,8 @@ import {
   PictureOutlined,
   CodeOutlined,
   GlobalOutlined,
+  RobotOutlined,
+  CommentOutlined,
 } from "@ant-design/icons-vue";
 
 interface MenuMeta {
@@ -95,6 +97,8 @@ const iconMap: Record<string, any> = {
   PictureOutlined,
   CodeOutlined,
   GlobalOutlined,
+  RobotOutlined,
+  CommentOutlined,
 };
 
 const getIcon = (iconName?: string) => {
@@ -148,6 +152,15 @@ watch(
   (path) => {
     updateSelectedKeys(path);
   },
+);
+
+// 监听菜单数据加载完成后更新选中状态
+watch(
+  () => props.menus,
+  () => {
+    updateSelectedKeys(route.path);
+  },
+  { deep: true }
 );
 
 // 组件挂载时初始化选中状态

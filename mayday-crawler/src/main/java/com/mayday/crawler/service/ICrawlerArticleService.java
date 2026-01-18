@@ -20,4 +20,12 @@ public interface ICrawlerArticleService extends IService<CrawlerArticleEntity> {
      * @return 分页结果
      */
     Page<CrawlerArticleEntity> queryList(CrawlerArticleQueryReq req);
+
+    /**
+     * 查询文章详情（包含图片处理）
+     *
+     * @param id 文章ID
+     * @return 文章详情
+     */
+    CrawlerArticleEntity queryDetail(Long id);
 }

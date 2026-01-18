@@ -1,6 +1,6 @@
 <template>
   <div class="frontend-layout">
-    <header class="frontend-header" v-if="route.path !== '/'">
+    <header class="frontend-header" v-if="route.path !== '/' && route.name !== 'ArticleDetail'">
       <div class="logo">MayDay AI</div>
       <nav>
         <router-link to="/">Home</router-link>
@@ -10,9 +10,7 @@
     <main>
       <router-view />
     </main>
-    <footer class="frontend-footer">
-      <p>&copy; 2025 MayDay. All rights reserved.</p>
-    </footer>
+
   </div>
 </template>
 
@@ -62,10 +60,5 @@ nav a:hover {
   color: #fff;
 }
 
-.frontend-footer {
-  padding: 40px;
-  text-align: center;
-  color: #666;
-  font-size: 14px;
-}
+
 </style>

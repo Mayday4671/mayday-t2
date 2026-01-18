@@ -11,7 +11,7 @@ export interface TabItem {
 const STORAGE_KEY = "MAYDAY_TABS";
 const HOME_TAB: TabItem = {
   title: "首页",
-  path: "/dashboard",
+  path: "/admin/dashboard", // Updated path
   name: "Dashboard",
   closable: false,
 };
@@ -28,7 +28,7 @@ if (savedTabs) {
     if (Array.isArray(parsed) && parsed.length > 0) {
       tabs.value = parsed;
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 
 export function useTabs() {
@@ -62,7 +62,7 @@ export function useTabs() {
       title: (meta?.title as string) || "未知页面",
       path,
       name: name,
-      closable: path !== "/dashboard",
+      closable: path !== "/admin/dashboard", // Updated check
     });
   };
 
@@ -70,7 +70,7 @@ export function useTabs() {
    * 关闭指定标签页
    */
   const removeTab = (targetKey: string) => {
-    if (targetKey === "/dashboard") return;
+    if (targetKey === "/admin/dashboard") return; // Updated check
 
     let lastIndex = 0;
     tabs.value.forEach((tab: TabItem, i: number) => {

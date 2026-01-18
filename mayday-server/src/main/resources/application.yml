@@ -72,7 +72,7 @@ mayday:
 logging:
   level:
     com.mayday: debug
-    com.mybatisflex: ERROR
+    com.mybatis flex: ERROR
 
 # springdoc
 springdoc:

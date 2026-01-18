@@ -29,6 +29,12 @@
             <artifactId>mayday-crawler</artifactId>
         </dependency>
 
+        <!-- 引入 AI 模块 -->
+        <dependency>
+            <groupId>com.mayday</groupId>
+            <artifactId>mayday-ai</artifactId>
+        </dependency>
+
         <!--通用工具模块-->
         <dependency>
             <groupId>com.mayday</groupId>

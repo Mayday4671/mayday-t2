@@ -61,7 +61,10 @@ public class SecurityConfig {
             "/doc.html",
             "/webjars/**",
             "/crawler-images/**",  // 爬虫图片静态资源
-            "/upload/**"           // 上传文件静态资源
+            "/upload/**",           // 上传文件静态资源
+            "/crawlerHelper/**",    // 爬虫Helper开放接口
+            "/crawlerArticle/**",   // 爬虫文章公共接口
+            "/portal/**"            // 门户前台公共接口
     };
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {

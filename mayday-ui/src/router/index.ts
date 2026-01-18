@@ -22,8 +22,15 @@ const routes: RouteRecordRaw[] = [
         component: () => import("../views/frontend/home/Index.vue"),
         meta: { title: "Home" }, // Public, no auth required
       },
-      // You can add more public pages here e.g. /about, /product
     ],
+  },
+
+  // Independent Article Detail Route (No Layout Wrapper)
+  {
+    path: "/article/:id",
+    name: "ArticleDetail",
+    component: () => import("../views/frontend/article/Detail.vue"),
+    meta: { title: "文章详情" },
   },
 
   // --- ADMIN ROUTES (Backend) ---
@@ -50,13 +57,8 @@ const routes: RouteRecordRaw[] = [
       },
       // 3. System Management
       {
-        path: "system", // Keep relative path "system", so it becomes /admin/system/...
-        // But wait, the original structure used specific children under /system.
-        // Let's refactor to keep the sidebar menu working. 
-        // Note: The SidebarMenu component likely uses route structure to generate menus.
-        // If we nest everything under /admin, we need to ensure the menu logic still works.
-        // For simplicity and robustness, let's keep the existing structure but serve it under the parent "/admin".
-        redirect: "/admin/system/user", // Redirect /admin/system to /admin/system/user
+        path: "system",
+        redirect: "/admin/system/user",
         meta: { title: "系统管理", icon: "SettingOutlined" },
         children: [
           {
@@ -131,9 +133,21 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
+      // 6. AI Module
+      {
+        path: "ai",
+        meta: { title: "AI 智能助手", icon: "RobotOutlined" },
+        children: [
+          {
+            path: "chat",
+            name: "AiChat",
+            component: () => import("../views/admin/ai/Chat.vue"),
+            meta: { title: "智能对话", icon: "CommentOutlined" }
+          }
+        ]
+      }
     ],
   },
-
 ];
 
 const router = createRouter({

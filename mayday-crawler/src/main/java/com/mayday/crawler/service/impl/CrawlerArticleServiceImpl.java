@@ -20,8 +20,28 @@ import com.mayday.crawler.util.CrawlerDataScopeUtil;
  * @author Antigravity
  * @since 1.0.0
  */
+import com.mayday.crawler.mapper.CrawlerImageMapper;
+import com.mayday.crawler.modl.entity.CrawlerImageEntity;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import static com.mayday.crawler.modl.entity.table.CrawlerImageEntityTableDef.CRAWLER_IMAGE_ENTITY;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import org.springframework.beans.factory.annotation.Value;
+
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper, CrawlerArticleEntity> implements ICrawlerArticleService {
+
+    private final CrawlerImageMapper imageMapper;
+
+    @Value("${crawler.image.base-path:${crawler.image-base-path:./data/crawler-images}}")
+    private String imageBasePath;
 
     @Override
     public Page<CrawlerArticleEntity> queryList(CrawlerArticleQueryReq req) {
@@ -33,11 +53,101 @@ public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper,
                 .and(CRAWLER_ARTICLE_ENTITY.SOURCE_SITE.like(req.getSourceSite()).when(StringUtils.isNotEmpty(req.getSourceSite())))
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.ge(req.getPublishTimeStart()).when(req.getPublishTimeStart() != null))
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.le(req.getPublishTimeEnd()).when(req.getPublishTimeEnd() != null))
-                .orderBy(CRAWLER_ARTICLE_ENTITY.CREATE_TIME, false);
+                .orderBy(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.desc());
 
-        // 应用数据权限过滤
+        // Apply data scope
         CrawlerDataScopeUtil.applyDataScope(wrapper, CRAWLER_ARTICLE_ENTITY.CREATE_BY, CRAWLER_ARTICLE_ENTITY.DEPT_ID);
 
-        return page(new Page<>(req.getCurrent(), req.getPageSize()), wrapper);
+        Page<CrawlerArticleEntity> page = page(new Page<>(req.getCurrent(), req.getPageSize()), wrapper);
+        
+        // Populate cover images from crawler_image table
+        if (page.hasRecords()) {
+            List<Long> articleIds = page.getRecords().stream()
+                    .map(CrawlerArticleEntity::getId)
+                    .collect(Collectors.toList());
+            
+            if (!articleIds.isEmpty()) {
+                // Fetch valid images
+                List<CrawlerImageEntity> images = imageMapper.selectListByQuery(
+                    QueryWrapper.create()
+                        .where(CRAWLER_IMAGE_ENTITY.ARTICLE_ID.in(articleIds))
+                );
+
+                // Map articleId -> computed display URL
+                Map<Long, String> coverMap = images.stream()
+                    .collect(Collectors.toMap(
+                        CrawlerImageEntity::getArticleId,
+                        this::computeDisplayUrl,
+                        (existing, replacement) -> existing // Keep the first found
+                    ));
+
+                for (CrawlerArticleEntity entity : page.getRecords()) {
+                    entity.setCoverImage(coverMap.get(entity.getId()));
+                }
+            }
+        }
+
+        return page;
+    }
+
+    @Override
+    public CrawlerArticleEntity queryDetail(Long id) {
+        CrawlerArticleEntity entity = getById(id);
+        if (entity == null) {
+            return null;
+        }
+
+        // Fetch associated images
+        List<CrawlerImageEntity> images = imageMapper.selectListByQuery(
+            QueryWrapper.create().where(CRAWLER_IMAGE_ENTITY.ARTICLE_ID.eq(id))
+        );
+
+        if (images != null && !images.isEmpty()) {
+            // 1. Set cover image
+            String coverUrl = computeDisplayUrl(images.get(0));
+            entity.setCoverImage(coverUrl);
+
+            // 2. Set image list (all images)
+            java.util.List<String> imageList = images.stream()
+                .map(this::computeDisplayUrl)
+                .collect(java.util.stream.Collectors.toList());
+            entity.setImageList(imageList);
+
+            // 3. Replace content images
+            String content = entity.getContent();
+            if (StringUtils.isNotEmpty(content)) {
+                for (CrawlerImageEntity img : images) {
+                    if (StringUtils.isNotEmpty(img.getUrl())) {
+                        String localUrl = computeDisplayUrl(img);
+                        // Replace original URL with local URL in content
+                        // Note: This is a simple replacement. 
+                        // It might be safer to match src="..." but simple replace often works for unique URLs.
+                        content = content.replace(img.getUrl(), localUrl);
+                    }
+                }
+                entity.setContent(content);
+            }
+        }
+        return entity;
+    }
+
+    private String computeDisplayUrl(CrawlerImageEntity image) {
+        if ("SUCCESS".equals(image.getDownloadStatus()) && StringUtils.isNotEmpty(image.getFilePath()) && StringUtils.isNotEmpty(image.getFileName())) {
+            try {
+                Path basePath = Paths.get(imageBasePath).toAbsolutePath().normalize();
+                Path dirPath = Paths.get(image.getFilePath()).toAbsolutePath().normalize();
+                Path fullFilePath = dirPath.resolve(image.getFileName()).normalize();
+
+                if (fullFilePath.startsWith(basePath)) {
+                    String relativePath = basePath.relativize(fullFilePath).toString().replace("\\", "/");
+                    return "/crawler-images/" + relativePath;
+                } else {
+                    return "/crawler-images/" + image.getFileName();
+                }
+            } catch (Exception e) {
+                log.warn("Error computing display URL for image {}: {}", image.getId(), e.getMessage());
+            }
+        }
+        return image.getUrl();
     }
 }
