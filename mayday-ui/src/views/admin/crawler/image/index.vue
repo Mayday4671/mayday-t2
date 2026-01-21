@@ -185,7 +185,7 @@ const queryParam = reactive({ title: "" });
 
 const pagination = reactive({
   current: 1,
-  pageSize: 10,
+  pageSize: 15,
   total: 0,
 });
 

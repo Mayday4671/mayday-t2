@@ -53,6 +53,7 @@ public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper,
                 .and(CRAWLER_ARTICLE_ENTITY.SOURCE_SITE.like(req.getSourceSite()).when(StringUtils.isNotEmpty(req.getSourceSite())))
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.ge(req.getPublishTimeStart()).when(req.getPublishTimeStart() != null))
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.le(req.getPublishTimeEnd()).when(req.getPublishTimeEnd() != null))
+                .and(CRAWLER_ARTICLE_ENTITY.STATUS.eq(req.getStatus()).when(req.getStatus() != null))
                 .orderBy(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.desc());
 
         // Apply data scope

@@ -1,10 +1,15 @@
 package com.mayday.ai.model.vo;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+
 /**
- * @Description: 
- * @Author: lc
- * @Date: 2026/1/19 22:15
- * @Version: 1.0
+ * AI 对话响应 DTO
  */
+@Data
+@AllArgsConstructor
 public class ChatRsp {
+
+    /** 模型输出 */
+    private String result;
 }

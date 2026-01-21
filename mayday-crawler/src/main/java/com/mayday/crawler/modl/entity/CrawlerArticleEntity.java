@@ -71,6 +71,12 @@ public class CrawlerArticleEntity {
     @Schema(description = "所属部门ID")
     private Long deptId;
 
+    @Schema(description = "审核状态：0-待审核 1-已发布 2-已驳回")
+    private Integer status;
+
+    @Schema(description = "来源类型：CRAWLER-爬虫采集 AI-AI生成 MANUAL-手动录入")
+    private String sourceType;
+
     @Schema(description = "封面图URL")
     @com.mybatisflex.annotation.Column(ignore = true)
     private String coverImage;

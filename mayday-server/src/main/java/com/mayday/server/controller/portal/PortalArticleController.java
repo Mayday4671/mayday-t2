@@ -27,8 +27,8 @@ public class PortalArticleController {
     @GetMapping("/list")
     @Operation(summary = "公开文章列表")
     public AjaxResult list(CrawlerArticleQueryReq req) {
-        // Force status = 1 (Published) if you had a status field, logic here.
-        // For now, just reusing existing query logic.
+        // 只展示已发布的文章
+        req.setStatus(1);
         Page<CrawlerArticleEntity> page = articleService.queryList(req);
         return AjaxResult.success(page);
     }
@@ -37,6 +37,9 @@ public class PortalArticleController {
     @Operation(summary = "公开文章详情")
     public AjaxResult detail(@PathVariable("id") Long id) {
         CrawlerArticleEntity entity = articleService.queryDetail(id);
+        if (entity == null || entity.getStatus() == null || entity.getStatus() != 1) {
+            return AjaxResult.error("文章不存在或未发布");
+        }
         return AjaxResult.success(entity);
     }
 }

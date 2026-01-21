@@ -59,10 +59,10 @@
             <!-- 用户下拉菜单 -->
             <a-dropdown>
               <a-space class="user-dropdown">
-                <a-avatar :size="28" :src="userInfo?.avatar" style="background-color: #1890ff">
-                  {{ !userInfo?.avatar ? userInfo?.username?.charAt(0)?.toUpperCase() : '' }}
+                <a-avatar :size="28" :src="userStore.userInfo?.avatar" style="background-color: #1890ff">
+                  {{ !userStore.userInfo?.avatar ? userStore.userInfo?.username?.charAt(0)?.toUpperCase() : '' }}
                 </a-avatar>
-                <span>{{ userInfo?.username }}</span>
+                <span>{{ userStore.userInfo?.username }}</span>
               </a-space>
               <template #overlay>
                 <a-menu>
@@ -151,21 +151,20 @@ import { message } from "ant-design-vue";
 import SideMenu from "./SideMenu.vue";
 import { useTabs } from "../../store/useTabs";
 import {
-  getInfo,
-  logout,
   switchDept,
-  type LoginResult,
   type DeptOption,
 } from "../../api/admin/auth";
 import request from "../../utils/request";
 
+import { useUserStore } from "../../store/useUser";
+
 const router = useRouter();
 const route = useRoute();
+const userStore = useUserStore();
 
 const collapsed = ref(false);
 const switching = ref(false);
 const menus = ref<any[]>([]);
-const userInfo = ref<LoginResult>();
 const deptList = ref<DeptOption[]>([]);
 const currentDeptId = ref<number>();
 
@@ -197,8 +196,7 @@ onMounted(async () => {
 
 const loadUserInfo = async () => {
   try {
-    const res = await getInfo();
-    userInfo.value = res;
+    const res = await userStore.getUserInfo();
     currentDeptId.value = res.currentDeptId;
   } catch (e) {
     router.push("/login");
@@ -301,17 +299,14 @@ const handleSwitchDept = async (deptId: number) => {
     router.go(0);
   } catch (e: any) {
     message.error(e.message || "切换部门失败");
-    currentDeptId.value = userInfo.value?.currentDeptId;
+    currentDeptId.value = userStore.userInfo?.currentDeptId;
   } finally {
     switching.value = false;
   }
 };
 
 const handleLogout = async () => {
-  try {
-    await logout();
-  } catch (e) {}
-  localStorage.removeItem("token");
+  await userStore.handleLogout();
   localStorage.removeItem("deptList");
   resetTabs(); // 清理标签页
   router.push("/login");

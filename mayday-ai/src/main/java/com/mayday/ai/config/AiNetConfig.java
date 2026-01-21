@@ -1,10 +1,10 @@
 package com.mayday.ai.config;
 
-/**
- * @Description: 
- * @Author: lc
- * @Date: 2026/1/19 23:27
- * @Version: 1.0
- */
+
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@EnableConfigurationProperties(AiNetProperties.class)
 public class AiNetConfig {
 }

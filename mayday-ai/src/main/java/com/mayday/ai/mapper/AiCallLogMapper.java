@@ -1,11 +1,9 @@
 package com.mayday.ai.mapper;
 
-/**
- * @Description:
- * @Author: lc
- * @Date: 2026/1/19 20:27
- * @Version: 1.0
- */
-public class AiCallLogMapper
-{
-}
+import com.mayday.ai.model.entity.AiCallLogEntity;
+import com.mybatisflex.core.BaseMapper;
+
+
+/** AI 调用日志 Mapper */
+public interface AiCallLogMapper extends BaseMapper<AiCallLogEntity>
+{}

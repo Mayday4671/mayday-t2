@@ -57,4 +57,9 @@ public class CrawlerArticleQueryReq {
      * 发布时间结束
      */
     private Date publishTimeEnd;
+
+    /**
+     * 审核状态：0-待审核 1-已发布 2-已驳回
+     */
+    private Integer status;
 }

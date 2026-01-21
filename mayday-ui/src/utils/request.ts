@@ -6,7 +6,7 @@ import axios, {
 // 创建 axios 实例
 const request = axios.create({
   baseURL: "http://localhost:9002",
-  timeout: 10000,
+  timeout: 60000,
 });
 
 // 请求拦截器 - 添加 Token

@@ -136,6 +136,7 @@ const routes: RouteRecordRaw[] = [
       // 6. AI Module
       {
         path: "ai",
+        redirect: "/admin/ai/chat",
         meta: { title: "AI 智能助手", icon: "RobotOutlined" },
         children: [
           {
@@ -143,6 +144,31 @@ const routes: RouteRecordRaw[] = [
             name: "AiChat",
             component: () => import("../views/admin/ai/Chat.vue"),
             meta: { title: "智能对话", icon: "CommentOutlined" }
+          }
+        ]
+      },
+      // 7. AI Configuration Management
+      {
+        path: "ai-config-manage",
+        meta: { title: "AI 配置管理", icon: "RobotOutlined" },
+        children: [
+          {
+            path: "ai-key",
+            name: "AiKey",
+            component: () => import("../views/admin/ai/AiKey.vue"),
+            meta: { title: "密钥管理", icon: "KeyOutlined" }
+          },
+          {
+            path: "ai-config",
+            name: "AiConfig",
+            component: () => import("../views/admin/ai/AiConfig.vue"),
+            meta: { title: "路由配置", icon: "DeploymentUnitOutlined" }
+          },
+          {
+            path: "ai-log",
+            name: "AiCallLog",
+            component: () => import("../views/admin/ai/AiCallLog.vue"),
+            meta: { title: "调用日志", icon: "FileTextOutlined" }
           }
         ]
       }

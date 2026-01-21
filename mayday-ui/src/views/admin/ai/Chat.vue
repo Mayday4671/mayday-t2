@@ -9,7 +9,8 @@
               <a-avatar v-else style="background-color: #f56a00">U</a-avatar>
             </div>
             <div class="content">
-              <div class="bubble">{{ msg.content }}</div>
+              <div v-if="msg.role === 'ai'" class="bubble markdown-body" v-html="renderMarkdown(msg.content)"></div>
+              <div v-else class="bubble">{{ msg.content }}</div>
             </div>
           </div>
         </div>
@@ -32,17 +33,38 @@
 import { ref } from 'vue';
 import { message } from 'ant-design-vue';
 import request from '../../../utils/request';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css'; // 使用深色主题，对比度更强
 
 interface Message {
   role: 'user' | 'ai';
   content: string;
 }
 
+// 配置 marked 使用 highlight.js
+marked.use({
+  renderer: {
+    // @ts-ignore
+    code(code: string, language: string) {
+      const validLanguage = hljs.getLanguage(language || '') ? language : 'plaintext';
+      // @ts-ignore
+      const highlighted = hljs.highlight(code, { language: validLanguage }).value;
+      return `<pre><code class="hljs language-${validLanguage}">${highlighted}</code></pre>`;
+    }
+  }
+});
+
 const inputValue = ref('');
 const loading = ref(false);
 const messages = ref<Message[]>([
   { role: 'ai', content: '您好，我是您的 AI 智能助手，有什么可以帮您？' }
 ]);
+
+const renderMarkdown = (content: string) => {
+  return DOMPurify.sanitize(marked.parse(content) as string);
+};
 
 const handleSend = async () => {
     if (!inputValue.value.trim()) return;
@@ -53,11 +75,20 @@ const handleSend = async () => {
     loading.value = true;
 
     try {
-        // Call backend API
-        const res: any = await request.get('/ai/chat', { params: { query } });
-        messages.value.push({ role: 'ai', content: res });
+        // Call backend API (POST request)
+        const res: any = await request.post('/ai/chat', { 
+            prompt: query,
+            sceneCode: 'chat'
+        }, { timeout: 120000 }); // Increase timeout to 120s for AI
+        // Response format: AjaxResult.data -> ChatRsp { result: string }
+        if (res && res.result) {
+            messages.value.push({ role: 'ai', content: res.result });
+        } else {
+             messages.value.push({ role: 'ai', content: typeof res === 'string' ? res : 'AI 响应格式错误' });
+        }
     } catch (e) {
         message.error('请求失败');
+        messages.value.push({ role: 'ai', content: '抱歉，服务暂时不可用，请稍后再试。' });
     } finally {
         loading.value = false;
     }
@@ -103,7 +134,7 @@ const handleSend = async () => {
     margin: 0 10px;
 }
 .content {
-    max-width: 60%;
+    max-width: 80%; /* Increased width for better reading */
 }
 .bubble {
     padding: 10px 15px;
@@ -111,8 +142,46 @@ const handleSend = async () => {
     background: #fff;
     box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     word-break: break-word;
+    /* Add logic for markdown */
 }
 .message.user .bubble {
     background: #95de64;
+}
+
+/* Markdown Styles */
+.markdown-body {
+  font-size: 14px;
+  line-height: 1.6;
+}
+:deep(.markdown-body h1), 
+:deep(.markdown-body h2), 
+:deep(.markdown-body h3) {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+:deep(.markdown-body p) {
+  margin-bottom: 10px;
+}
+:deep(.markdown-body code) {
+  background-color: rgba(175, 184, 193, 0.2);
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  font-family: monospace;
+}
+:deep(.markdown-body pre) {
+  background-color: #f6f8fa;
+  padding: 16px;
+  border-radius: 6px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+:deep(.markdown-body pre code) {
+  background-color: transparent;
+  padding: 0;
+}
+:deep(.markdown-body ul), :deep(.markdown-body ol) {
+    padding-left: 20px;
+    margin-bottom: 10px;
 }
 </style>

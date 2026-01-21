@@ -70,6 +70,21 @@
     >
       <a-form :model="formData" layout="vertical">
         <a-row :gutter="16">
+          <a-col :span="24">
+            <a-form-item label="上级菜单">
+              <a-tree-select
+                v-model:value="formData.parentId"
+                :tree-data="parentMenuOptions"
+                placeholder="选择上级菜单"
+                :field-names="{ label: 'menuName', value: 'id', children: 'children' }"
+                allow-clear
+                tree-default-expand-all
+                style="width: 100%"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item label="菜单类型">
               <a-radio-group v-model:value="formData.menuType">
@@ -220,6 +235,22 @@ const handleIconDblClick = (icon: string) => {
 const loading = ref(false);
 const submitting = ref(false);
 const menuList = ref<any[]>([]);
+
+// 父级菜单选项（排除按钮类型，只保留目录和菜单）
+const parentMenuOptions = computed(() => {
+  const filterMenus = (menus: any[]): any[] => {
+    return menus
+      .filter((m) => m.menuType !== 'F')  // 排除按钮
+      .map((m) => ({
+        ...m,
+        children: m.children ? filterMenus(m.children) : undefined
+      }));
+  };
+  // 添加根节点选项
+  return [
+    { id: 0, menuName: '根目录', children: filterMenus(menuList.value) }
+  ];
+});
 
 // 新增/编辑表单
 const formVisible = ref(false);

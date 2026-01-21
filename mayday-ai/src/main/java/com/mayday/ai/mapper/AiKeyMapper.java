@@ -1,10 +1,7 @@
 package com.mayday.ai.mapper;
 
-/**
- * @Description: 
- * @Author: lc
- * @Date: 2026/1/19 20:26
- * @Version: 1.0
- */
-public class AiKeyMapper {
-}
+import com.mayday.ai.model.entity.AiKeyEntity;
+import com.mybatisflex.core.BaseMapper;
+
+/** AI Key 表 Mapper */
+public interface AiKeyMapper extends BaseMapper<AiKeyEntity> {}

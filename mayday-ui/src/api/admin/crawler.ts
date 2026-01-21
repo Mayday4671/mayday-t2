@@ -60,6 +60,21 @@ export function fetchDeleteArticle(id: number) {
   return request.delete(`/crawlerArticle/${id}`);
 }
 
+// 更新文章
+export function fetchUpdateArticle(data: any) {
+  return request.put("/crawlerArticle", data);
+}
+
+// 审核文章
+export function fetchAuditArticle(data: { id: number; status: number }) {
+  return request.put("/crawlerArticle/audit", data);
+}
+
+// 批量审核文章
+export function fetchBatchAuditArticle(data: { ids: number[]; status: number }) {
+  return request.put("/crawlerArticle/batchAudit", data);
+}
+
 // ========== 图片管理 ==========
 export function fetchGetImageList(params: any) {
   return request.post("/crawlerImage/list", params);

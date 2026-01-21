@@ -1,4 +1,4 @@
-package com.mayday.ai.factory;
+package com.mayday.ai.factory.impl;
 
 import com.mayday.ai.mapper.AiKeyMapper;
 import com.mayday.ai.model.entity.AiConfigEntity;

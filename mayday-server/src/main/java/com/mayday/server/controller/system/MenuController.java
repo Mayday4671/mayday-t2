@@ -149,6 +149,7 @@ public class MenuController {
                 .map(m -> {
                     MenuTreeVo vo = new MenuTreeVo();
                     vo.setId(m.getId());
+                    vo.setParentId(m.getParentId());
                     vo.setMenuName(m.getMenuName());
                     vo.setPath(m.getPath());
                     vo.setComponent(m.getComponent());
@@ -302,6 +303,7 @@ public class MenuController {
     @Data
     public static class MenuTreeVo {
         private Long id;
+        private Long parentId;
         private String menuName;
         private String path;
         private String component;

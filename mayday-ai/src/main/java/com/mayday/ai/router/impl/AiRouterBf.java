@@ -11,7 +11,7 @@ import java.util.List;
 
 
 /**
- * AiRouter：负责从数据库拉取某个 (tenantId + sceneCode) 的候选配置列表
+ * AiRouterBf：负责从数据库拉取某个 (tenantId + sceneCode) 的候选配置列表
  *
  * 说明：
  * - 这里只负责“取候选并排序”，不做真正的权重挑选与回退执行
@@ -19,7 +19,8 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
-public class AiRouter {
+public class AiRouterBf
+{
 
     private final AiConfigMapper aiConfigMapper;
 

@@ -1,4 +1,4 @@
-package com.mayday.ai.service;
+package com.mayday.ai.api;
 
 /**
  * AiService：业务统一入口

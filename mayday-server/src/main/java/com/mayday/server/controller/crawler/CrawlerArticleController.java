@@ -50,4 +50,49 @@ public class CrawlerArticleController {
         imageService.removeImagesWithFileByArticleId(id);
         return AjaxResult.success(articleService.removeById(id));
     }
+
+    @PutMapping
+    @Operation(summary = "更新文章")
+    @PreAuthorize("hasAuthority('crawler:article:edit')")
+    public AjaxResult update(@RequestBody CrawlerArticleEntity article) {
+        return AjaxResult.success(articleService.updateById(article));
+    }
+
+    @PutMapping("/audit")
+    @Operation(summary = "审核文章")
+    @PreAuthorize("hasAuthority('crawler:article:audit')")
+    public AjaxResult audit(@RequestBody AuditReq req) {
+        CrawlerArticleEntity article = new CrawlerArticleEntity();
+        article.setId(req.getId());
+        article.setStatus(req.getStatus());
+        return AjaxResult.success(articleService.updateById(article));
+    }
+
+    @PutMapping("/batchAudit")
+    @Operation(summary = "批量审核文章")
+    @PreAuthorize("hasAuthority('crawler:article:audit')")
+    public AjaxResult batchAudit(@RequestBody BatchAuditReq req) {
+        if (req.getIds() == null || req.getIds().isEmpty()) {
+            return AjaxResult.error("请选择要审核的文章");
+        }
+        for (Long id : req.getIds()) {
+            CrawlerArticleEntity article = new CrawlerArticleEntity();
+            article.setId(id);
+            article.setStatus(req.getStatus());
+            articleService.updateById(article);
+        }
+        return AjaxResult.success("批量审核成功");
+    }
+
+    @lombok.Data
+    public static class BatchAuditReq {
+        private java.util.List<Long> ids;
+        private Integer status; // 1-Pass, 2-Reject
+    }
+
+    @lombok.Data
+    public static class AuditReq {
+        private Long id;
+        private Integer status; // 1-Pass, 2-Reject
+    }
 }
