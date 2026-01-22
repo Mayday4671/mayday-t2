@@ -162,7 +162,7 @@ import { useRouter } from 'vue-router';
 import { 
   SearchOutlined, FireOutlined, EyeOutlined, RocketOutlined,
   AppstoreOutlined, AndroidOutlined, AppleOutlined, CodeOutlined,
-  RightOutlined, LinkOutlined
+  RightOutlined
 } from '@ant-design/icons-vue';
 import { fetchPortalArticleList } from '../../../api/frontend/portal';
 import dayjs from 'dayjs';

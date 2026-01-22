@@ -225,7 +225,28 @@
             <a-textarea v-model:value="aiResult.summary" :rows="3"/>
           </a-form-item>
           <a-form-item label="正文">
-            <a-textarea v-model:value="aiResult.content" :rows="15"/>
+            <template #extra>
+              <a-space>
+                <a-switch 
+                  :checked="viewMode === 'preview'" 
+                  checked-children="预览" 
+                  un-checked-children="源码" 
+                  @change="(val: boolean) => viewMode = val ? 'preview' : 'source'" 
+                />
+              </a-space>
+            </template>
+            <div 
+              ref="markDownBodyRef"
+              v-show="viewMode === 'preview'" 
+              class="markdown-body" 
+              style="border: 1px solid #d9d9d9; border-radius: 6px; padding: 12px; min-height: 332px; max-height: 500px; overflow-y: auto;"
+              v-html="renderMarkdown(aiResult.content)"
+            ></div>
+            <a-textarea 
+              v-show="viewMode === 'source'" 
+              v-model:value="aiResult.content" 
+              :rows="15" 
+            />
           </a-form-item>
           <a-form-item label="修改意见（用于修正功能）">
             <a-input v-model:value="correctionText" placeholder="输入修改意见后点击'修正'"/>
@@ -272,26 +293,16 @@
 </template>
 
 <script setup lang="ts">
-import {ref, reactive, onMounted} from "vue";
+import {ref, reactive, onMounted, onUnmounted, watch, nextTick} from "vue";
 import {message} from "ant-design-vue";
 import {RobotOutlined, CheckOutlined, CloseOutlined, EyeOutlined, DeleteOutlined} from "@ant-design/icons-vue";
 import type {TablePaginationConfig} from "ant-design-vue";
 import {hasPermission} from "../../../../utils/permission";
-import {useUserStore} from "../../../../store/useUser"; // Import store for debugging
+import {useUserStore} from "../../../../store/useUser";
 import { marked } from "marked";
 import hljs from "highlight.js";
-import "highlight.js/styles/atom-one-dark.css"; // 引入代码高亮样式
+import "highlight.js/styles/atom-one-dark.css";
 
-// ... imports
-
-// ... at the start of script setup
-const userStore = useUserStore();
-
-onMounted(async () => {
-  // 强制刷新用户信息以获取最新权限
-  await userStore.getUserInfo();
-  fetchList();
-});
 import {
   fetchGetArticleList,
   fetchGetArticleDetail,
@@ -300,15 +311,19 @@ import {
   fetchBatchAuditArticle,
 } from "../../../../api/admin/crawler";
 
-
 import {
-  generateArticle,
-  optimizeArticle,
-  correctArticle,
   saveAiArticle,
 } from "../../../../api/article/ai";
 
+import {
+  streamGenerateArticle,
+  streamOptimizeArticle,
+  streamCorrectArticle
+} from "../../../../api/ai/stream";
+
 defineOptions({name: "ArticlePage"});
+
+const userStore = useUserStore();
 
 const loading = ref(false);
 const dataList = ref<any[]>([]);
@@ -341,12 +356,7 @@ const currentArticle = ref<any>(null);
 
 // AI 生成相关
 const aiModalVisible = ref(false);
-const aiStep = ref(1);
-// const pageContainerRef = ref(null);
-const aiConfig = ref({
-  provider: '',
-  apiKey: '',
-});
+const aiStep = ref(0);
 const aiGenerating = ref(false);
 const aiSaving = ref(false);
 const correctionText = ref("");
@@ -363,11 +373,29 @@ const aiResult = reactive({
   content: "",
 });
 
+// 视图模式：preview=预览(渲染MD), edit=源码(编辑)
+const viewMode = ref<'preview' | 'source'>('preview');
+
+
+const markDownBodyRef = ref<HTMLElement | null>(null);
+
+// 监听 AI 生成内容变化，实现自动滚动
+watch(() => aiResult.content, () => {
+  if (viewMode.value === 'preview' && markDownBodyRef.value) {
+    nextTick(() => {
+        if (markDownBodyRef.value) {
+            markDownBodyRef.value.scrollTop = markDownBodyRef.value.scrollHeight;
+        }
+    });
+  }
+});
+
 const saveForm = reactive({
   authorType: "SELF",
 });
 
-onMounted(() => {
+onMounted(async () => {
+  await userStore.getUserInfo();
   fetchList();
 });
 
@@ -463,6 +491,34 @@ const handleBatchAudit = async (status: number) => {
 };
 
 // ========== AI 生成相关 ==========
+
+// 解析生成的原始内容
+const parseAndAssign = (text: string) => {
+  const extract = (tag: string, endPrefix?: string) => {
+    const start = text.indexOf(tag);
+    if (start === -1) return "";
+    const contentStart = start + tag.length;
+    
+    if (!endPrefix) {
+      return text.substring(contentStart);
+    }
+    
+    const end = text.indexOf(endPrefix, contentStart);
+    if (end === -1) {
+      return text.substring(contentStart);
+    }
+    return text.substring(contentStart, end);
+  };
+
+  const title = extract("【标题】", "【");
+  const summary = extract("【摘要】", "【");
+  const content = extract("【正文】");
+
+  if (title) aiResult.title = title.trim();
+  if (summary) aiResult.summary = summary.trim();
+  if (content) aiResult.content = content.trim();
+};
+
 const openAiModal = () => {
   aiStep.value = 0;
   aiForm.topic = "";
@@ -476,27 +532,59 @@ const openAiModal = () => {
   aiModalVisible.value = true;
 };
 
+// 允许中断生成
+let abortController: { abort: () => void } | null = null;
+
+onMounted(() => {
+  fetchList();
+});
+
+onUnmounted(() => {
+  if (abortController) {
+    abortController.abort();
+  }
+});
+
 const handleGenerate = async () => {
   if (!aiForm.topic) {
     message.warning("请输入文章主题");
     return;
   }
+  
+  // 切换到预览步骤
+  aiStep.value = 1;
   aiGenerating.value = true;
+  
+  // 清空结果
+  aiResult.title = "";
+  aiResult.summary = "";
+  aiResult.content = "";
+  let rawText = "";
+
   try {
-    const res: any = await generateArticle({
-      topic: aiForm.topic,
-      keywords: aiForm.keywords,
-      style: aiForm.style,
-    });
-    aiResult.title = res.title || "";
-    aiResult.summary = res.summary || "";
-    aiResult.content = res.content || "";
-    aiStep.value = 1;
-    message.success("文章生成成功");
+    const { promise, abort } = streamGenerateArticle(
+      {
+        topic: aiForm.topic,
+        keywords: aiForm.keywords,
+        style: aiForm.style,
+      },
+      (token) => {
+        rawText += token;
+        parseAndAssign(rawText);
+      },
+      (error) => {
+        message.warning(`生成过程提示: ${error}`);
+      }
+    );
+    
+    abortController = { abort };
+    await promise;
+    message.success("文章生成完成");
   } catch (e: any) {
-    message.error(e.message || "生成失败");
+    console.error(e);
   } finally {
     aiGenerating.value = false;
+    abortController = null;
   }
 };
 
@@ -510,19 +598,31 @@ const handleOptimize = async () => {
     return;
   }
   aiGenerating.value = true;
+  let rawText = "";
+  
   try {
-    const res: any = await optimizeArticle({
-      title: aiResult.title,
-      content: aiResult.content,
-    });
-    aiResult.title = res.title || aiResult.title;
-    aiResult.summary = res.summary || aiResult.summary;
-    aiResult.content = res.content || aiResult.content;
-    message.success("优化成功");
+    const { promise, abort } = streamOptimizeArticle(
+        {
+          title: aiResult.title,
+          content: aiResult.content,
+        },
+        (token) => {
+          rawText += token;
+          parseAndAssign(rawText);
+        },
+        (error) => {
+           message.warning(`优化过程提示: ${error}`);
+        }
+    );
+    
+    abortController = { abort };
+    await promise;
+    message.success("优化完成");
   } catch (e: any) {
-    message.error(e.message || "优化失败");
+    console.error(e);
   } finally {
     aiGenerating.value = false;
+    abortController = null;
   }
 };
 
@@ -532,21 +632,33 @@ const handleCorrect = async () => {
     return;
   }
   aiGenerating.value = true;
+  let rawText = "";
+  
   try {
-    const res: any = await correctArticle({
-      title: aiResult.title,
-      content: aiResult.content,
-      correction: correctionText.value,
-    });
-    aiResult.title = res.title || aiResult.title;
-    aiResult.summary = res.summary || aiResult.summary;
-    aiResult.content = res.content || aiResult.content;
+    const { promise, abort } = streamCorrectArticle(
+        {
+          title: aiResult.title,
+          content: aiResult.content,
+          correction: correctionText.value,
+        },
+        (token) => {
+          rawText += token;
+          parseAndAssign(rawText);
+        },
+        (error) => {
+           message.warning(`修正过程提示: ${error}`);
+        }
+    );
+    
+    abortController = { abort };
+    await promise;
     correctionText.value = "";
-    message.success("修正成功");
+    message.success("修正完成");
   } catch (e: any) {
-    message.error(e.message || "修正失败");
+    console.error(e);
   } finally {
     aiGenerating.value = false;
+    abortController = null;
   }
 };
 
@@ -688,6 +800,33 @@ marked.use({ renderer });
   padding: 10px;
   border: 1px solid #eee;
   border-radius: 4px;
+}
+</style>
+
+<style scoped>
+/* Markdown 列表样式修正 */
+:deep(.markdown-body) {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+:deep(.markdown-body ul), :deep(.markdown-body ol) {
+  padding-left: 2em;
+  margin-bottom: 1em;
+}
+
+:deep(.markdown-body li) {
+  margin-bottom: 0.5em;
+}
+
+:deep(.markdown-body h1), 
+:deep(.markdown-body h2), 
+:deep(.markdown-body h3), 
+:deep(.markdown-body h4) {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
 }
 </style>
 

@@ -16,10 +16,7 @@
         </nav>
 
         <div class="action-area">
-          <a-button type="text" @click="$router.push('/')">
-            <arrow-left-outlined/>
-            返回列表
-          </a-button>
+           <!-- 预留右侧操作区，如搜索、登录等 -->
         </div>
       </div>
     </header>
@@ -29,33 +26,37 @@
 
       <!-- Center Content (Article Detail) -->
       <main class="main-feed">
+        <div class="breadcrumb-bar">
+          <a-breadcrumb>
+            <a-breadcrumb-item><a @click="$router.push('/')">首页</a></a-breadcrumb-item>
+            <a-breadcrumb-item>文章正文</a-breadcrumb-item>
+          </a-breadcrumb>
+        </div>
+
         <div class="article-wrapper" v-if="article">
           <div class="article-flex-container">
             <!-- Left Column: Article Content -->
             <div class="article-main-col">
               <!-- Hero Section -->
               <div class="article-hero">
-                <div class="hero-meta">
-                  <a-tag color="blue" v-if="article.sourceSite">{{ article.sourceSite }}</a-tag>
-                  <span class="publish-time">{{ formatDate(article.publishTime) }}</span>
-                </div>
                 <h1 class="article-title">{{ article.title }}</h1>
-
-                <div class="author-card">
-                  <div class="avatar" :style="{ background: getRandomColor(article.id) }">{{
-                      (article.author || 'M')[0]
-                    }}
-                  </div>
-                  <div class="author-info">
-                    <div class="author-name">{{ article.author || 'Mayday Author' }}</div>
-                    <div class="author-desc">发布于 {{ article.sourceSite || '全网' }} · 阅读
-                      {{ Math.floor(Math.random() * 5000) + 500 }}
-                    </div>
-                  </div>
-                  <a-button type="primary" shape="round" size="small" class="follow-btn">
-                    <plus-outlined/>
-                    关注
-                  </a-button>
+                <div class="hero-meta-row">
+                   <div class="meta-item author-item">
+                      <a-avatar :size="24" :style="{ backgroundColor: getRandomColor(article.id) }">
+                        {{ (article.author || 'M')[0] }}
+                      </a-avatar>
+                      <span class="author-name">{{ article.author || 'Mayday Author' }}</span>
+                   </div>
+                   <span class="divider">·</span>
+                   <div class="meta-item">
+                      <span class="publish-time">{{ formatDate(article.publishTime) }}</span>
+                   </div>
+                   <span class="divider">·</span>
+                   <div class="meta-item">
+                      <span>阅读 {{ Math.floor(Math.random() * 5000) + 500 }}</span>
+                   </div>
+                   <span class="divider" v-if="article.sourceSite">·</span>
+                   <a-tag color="blue" v-if="article.sourceSite" style="border:none">{{ article.sourceSite }}</a-tag>
                 </div>
               </div>
 
@@ -151,7 +152,10 @@
       <aside class="sidebar-right">
         <div class="sidebar-scroll-content">
           <div class="widget-card author-widget">
-            <div class="widget-header">关于作者</div>
+            <div class="widget-header">
+               <span>关于作者</span>
+               <a-tag color="blue">签约作者</a-tag>
+            </div>
             <div class="widget-body">
               <div class="author-row">
                 <div class="avatar-lg" :style="{ background: article ? getRandomColor(article.id) : '#ccc' }">
@@ -159,22 +163,45 @@
                 </div>
                 <div class="info">
                   <div class="name">{{ article ? article.author : 'Loading' }}</div>
-                  <div class="role">内容创作者</div>
+                  <div class="role">
+                     <span class="badage">Lv4</span>
+                     <span>全栈开发工程师</span>
+                  </div>
                 </div>
+                <a-button type="primary" size="small" shape="round" ghost>+ 关注</a-button>
+              </div>
+              <div class="author-stat">
+                 <div class="stat-item">
+                    <div class="num">128</div>
+                    <div class="label">文章</div>
+                 </div>
+                 <div class="stat-item">
+                    <div class="num">2.3k</div>
+                    <div class="label">阅读</div>
+                 </div>
+                 <div class="stat-item">
+                    <div class="num">566</div>
+                    <div class="label">粉丝</div>
+                 </div>
               </div>
             </div>
           </div>
           <div class="widget-card recommend-widget" v-if="recommendList.length > 0">
-            <div class="widget-header">热门推荐</div>
+            <div class="widget-header">
+               <span>热门推荐</span>
+               <a-button type="link" size="small" style="padding: 0">更多 <arrow-right-outlined /></a-button>
+            </div>
             <div class="side-list">
-              <div class="side-item" v-for="item in recommendList.slice(0, 5)" :key="item.id"
-                   @click="goToDetail(item.id)">
+              <div class="side-item" v-for="item in recommendList.slice(0, 5)" :key="item.id" @click="goToDetail(item.id)">
                 <div class="side-thumb" v-if="item.coverImage">
                   <img :src="item.coverImage"/>
                 </div>
                 <div class="side-content">
                   <div class="side-title">{{ item.title }}</div>
-                  <div class="side-date">{{ formatDate(item.publishTime) }}</div>
+                  <div class="side-meta">
+                     <span class="date">{{ formatDate(item.publishTime) }}</span>
+                     <span class="view"><eye-outlined /> {{ Math.floor(Math.random() * 1000) }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -189,14 +216,13 @@
 import {ref, onMounted, watch, computed, onUnmounted} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import {
-  ArrowLeftOutlined, PlusOutlined, LikeOutlined, StarOutlined,
+  LikeOutlined, StarOutlined,
   ShareAltOutlined, ExportOutlined, EyeOutlined, PictureOutlined
 } from '@ant-design/icons-vue';
 import {fetchPortalArticleDetail, fetchPortalArticleList} from '../../../api/frontend/portal';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import {Empty} from 'ant-design-vue';
 import {marked} from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/atom-one-dark.css";
@@ -414,6 +440,10 @@ watch(() => route.params.id, (newId) => {
   height: fit-content;
 }
 
+.breadcrumb-bar {
+  margin-bottom: 20px;
+}
+
 .article-wrapper {
   background: #fff;
   border-radius: 8px;
@@ -421,36 +451,54 @@ watch(() => route.params.id, (newId) => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.author-card {
+.article-hero {
+  border-bottom: 1px solid #e4e6eb;
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+}
+
+.article-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.hero-meta-row {
   display: flex;
   align-items: center;
-  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 14px;
+  color: #8a919f;
+  margin-bottom: 0;
 }
 
-.avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+.meta-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: bold;
-  margin-right: 12px;
 }
 
-.author-info {
-  flex: 1;
-}
-
-.author-name {
-  font-weight: 600;
+.author-item {
   color: #333;
+  font-weight: 500;
+  gap: 8px;
+  cursor: pointer;
+  transition: color 0.2s;
 }
 
-.author-desc {
-  font-size: 12px;
-  color: #86909c;
+.author-item:hover {
+  color: #1677ff;
+}
+
+.author-item .author-name {
+  font-size: 14px;
+}
+
+.divider {
+  color: #e5e6eb;
+  margin: 0 4px;
 }
 
 .article-flex-container {
@@ -465,10 +513,13 @@ watch(() => route.params.id, (newId) => {
 
 .article-toc-col {
   width: 220px;
-  position: sticky;
-  top: 0;
   border-left: 1px solid #f0f0f0;
   padding-left: 15px;
+}
+
+.internal-toc-widget {
+  position: sticky;
+  top: 20px;
 }
 
 .toc-header {
@@ -652,8 +703,8 @@ watch(() => route.params.id, (newId) => {
 }
 
 .widget-card.author-widget {
+  padding: 0;
   cursor: default;
-  padding: 16px;
 }
 
 .widget-card.author-widget:hover {
@@ -661,21 +712,104 @@ watch(() => route.params.id, (newId) => {
 }
 
 .widget-header {
-  font-weight: bold;
-  margin-bottom: 12px;
+  font-weight: 600;
   font-size: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.widget-body {
+  padding: 20px;
+}
+
+.author-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.avatar-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  font-weight: bold;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  margin-right: 8px;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 16px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.role {
+  font-size: 12px;
+  color: #86909c;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badage {
+  background: #e6f7ff;
+  color: #1677ff;
+  padding: 0 4px;
+  border-radius: 2px;
+  font-weight: bold;
+}
+
+.author-stat {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+}
+
+.stat-item .num {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.stat-item .label {
+  font-size: 12px;
+  color: #86909c;
+  margin-top: 4px;
+}
+
+.side-list {
+  padding: 16px 20px;
 }
 
 .side-item {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 16px;
   cursor: pointer;
 }
 
+.side-item:last-child {
+  margin-bottom: 0;
+}
+
 .side-thumb {
-  width: 60px;
-  height: 45px;
+  width: 80px;
+  height: 60px;
   border-radius: 4px;
   overflow: hidden;
   flex-shrink: 0;
@@ -685,19 +819,43 @@ watch(() => route.params.id, (newId) => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.side-item:hover .side-thumb img {
+  transform: scale(1.1);
 }
 
 .side-content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .side-title {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 6px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  transition: color 0.3s;
+}
+
+.side-item:hover .side-title {
+  color: #1677ff;
+}
+
+.side-meta {
+  font-size: 12px;
+  color: #999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 </style>

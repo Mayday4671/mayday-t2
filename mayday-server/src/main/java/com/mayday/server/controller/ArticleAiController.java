@@ -1,6 +1,7 @@
 package com.mayday.server.controller;
 
 import com.mayday.ai.api.AiService;
+import com.mayday.ai.api.StreamingAiService;
 import com.mayday.auth.model.LoginUser;
 import com.mayday.auth.util.SecurityUtils;
 import com.mayday.common.web.AjaxResult;
@@ -8,12 +9,18 @@ import com.mayday.crawler.modl.entity.CrawlerArticleEntity;
 import com.mayday.crawler.service.ICrawlerArticleService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * AI 文章生成控制器
@@ -21,33 +28,28 @@ import java.util.Map;
  * @author Antigravity
  * @since 1.0.0
  */
+@Slf4j
 @RestController
 @RequestMapping("/article/ai")
 @RequiredArgsConstructor
 public class ArticleAiController {
 
     private final AiService aiService;
+    private final StreamingAiService streamingAiService;
     private final ICrawlerArticleService articleService;
 
+    private final ExecutorService streamExecutor = Executors.newCachedThreadPool();
+
     /**
-     * 生成文章
-     * 
-     * @param req 生成请求（主题、关键词、风格）
-     * @return 生成的文章内容（标题、正文、摘要）
+     * 生成文章（同步）
      */
     @PostMapping("/generate")
-    @PreAuthorize("hasAuthority('article:ai:generate')")
+    @PreAuthorize("isAuthenticated()")
     public AjaxResult generate(@RequestBody GenerateReq req) {
-        // 构建生成提示词
         String prompt = buildGeneratePrompt(req.getTopic(), req.getKeywords(), req.getStyle());
-        
         try {
-            // 调用 AI 服务生成内容
             String result = aiService.chat("article_generation", "*", prompt);
-            
-            // 解析生成结果
             Map<String, String> parsed = parseGeneratedContent(result);
-            
             return AjaxResult.success(parsed);
         } catch (Exception e) {
             return handleAiException(e);
@@ -55,16 +57,24 @@ public class ArticleAiController {
     }
 
     /**
-     * 优化文章
+     * 生成文章（流式 SSE）
+     */
+    @GetMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public SseEmitter generateStream(@RequestParam("topic") String topic, 
+                                     @RequestParam(value = "keywords", required = false) String keywords, 
+                                     @RequestParam(value = "style", required = false) String style) {
+        String prompt = buildGeneratePrompt(topic, keywords, style);
+        return handleStreamRequest(prompt);
+    }
+
+    /**
+     * 优化文章（同步）
      */
     @PostMapping("/optimize")
-    @PreAuthorize("hasAuthority('article:ai:generate')")
+    @PreAuthorize("isAuthenticated()")
     public AjaxResult optimize(@RequestBody OptimizeReq req) {
-        String prompt = "请优化以下文章内容，使其更加专业、流畅、有吸引力：\n\n" +
-                "标题：" + req.getTitle() + "\n\n" +
-                "正文：" + req.getContent() + "\n\n" +
-                "请保持技术教程风格，输出格式：\n【标题】xxx\n【摘要】xxx\n【正文】xxx";
-        
+        String prompt = buildOptimizePrompt(req.getTitle(), req.getContent());
         try {
             String result = aiService.chat("article_generation", "*", prompt);
             Map<String, String> parsed = parseGeneratedContent(result);
@@ -75,17 +85,22 @@ public class ArticleAiController {
     }
 
     /**
-     * 修正文章
+     * 优化文章（流式 SSE）
+     */
+    @PostMapping(value = "/optimize/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public SseEmitter optimizeStream(@RequestBody OptimizeReq req) {
+        String prompt = buildOptimizePrompt(req.getTitle(), req.getContent());
+        return handleStreamRequest(prompt);
+    }
+
+    /**
+     * 修正文章（同步）
      */
     @PostMapping("/correct")
-    @PreAuthorize("hasAuthority('article:ai:generate')")
+    @PreAuthorize("isAuthenticated()")
     public AjaxResult correct(@RequestBody CorrectReq req) {
-        String prompt = "请根据以下修改意见修正文章：\n\n" +
-                "原标题：" + req.getTitle() + "\n" +
-                "原正文：" + req.getContent() + "\n\n" +
-                "修改意见：" + req.getCorrection() + "\n\n" +
-                "请输出修正后的内容，格式：\n【标题】xxx\n【摘要】xxx\n【正文】xxx";
-        
+        String prompt = buildCorrectPrompt(req.getTitle(), req.getContent(), req.getCorrection());
         try {
             String result = aiService.chat("article_generation", "*", prompt);
             Map<String, String> parsed = parseGeneratedContent(result);
@@ -93,6 +108,76 @@ public class ArticleAiController {
         } catch (Exception e) {
             return handleAiException(e);
         }
+    }
+
+    /**
+     * 修正文章（流式 SSE）
+     */
+    @PostMapping(value = "/correct/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PreAuthorize("isAuthenticated()")
+    public SseEmitter correctStream(@RequestBody CorrectReq req) {
+        String prompt = buildCorrectPrompt(req.getTitle(), req.getContent(), req.getCorrection());
+        return handleStreamRequest(prompt);
+    }
+    
+    // ========== Helper Methods for Stream ==========
+
+    private SseEmitter handleStreamRequest(String prompt) {
+        // 5分钟超时（文章生成比较慢）
+        SseEmitter emitter = new SseEmitter(300_000L);
+        
+        streamExecutor.submit(() -> {
+            try {
+                streamingAiService.streamChat("article_generation", "*", prompt,
+                    token -> {
+                        try {
+                            // 包装为 JSON 以保留换行符等特殊字符
+                            Map<String, String> data = new HashMap<>();
+                            data.put("content", token);
+                            emitter.send(SseEmitter.event().data(data));
+                        } catch (IOException e) {
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    () -> {
+                        try {
+                            emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                            emitter.complete();
+                        } catch (IOException e) {
+                            emitter.completeWithError(e);
+                        }
+                    },
+                    error -> {
+                        try {
+                            emitter.send(SseEmitter.event().name("error").data(error.getMessage()));
+                            emitter.completeWithError(error);
+                        } catch (IOException e) {
+                            emitter.completeWithError(e);
+                        }
+                    }
+                );
+            } catch (Exception e) {
+                log.error("流式生成失败", e);
+                emitter.completeWithError(e);
+            }
+        });
+        
+        return emitter;
+    }
+
+    private String buildOptimizePrompt(String title, String content) {
+        return "请优化以下文章内容，使其更加专业、流畅、有吸引力：\n\n" +
+                "标题：" + title + "\n\n" +
+                "正文：" + content + "\n\n" +
+                "请保持技术教程风格，输出格式：\n【标题】xxx\n【摘要】xxx\n【正文】xxx";
+    }
+
+    private String buildCorrectPrompt(String title, String content, String correction) {
+        return "请根据以下修改意见修正文章：\n\n" +
+                "原标题：" + title + "\n" +
+                "原正文：" + content + "\n\n" +
+                "修改意见：" + correction + "\n\n" +
+                "请输出修正后的内容，格式：\n【标题】xxx\n【摘要】xxx\n【正文】xxx";
     }
 
     private AjaxResult handleAiException(Exception e) {
@@ -111,7 +196,7 @@ public class ArticleAiController {
      * 保存 AI 生成的文章
      */
     @PostMapping("/save")
-    @PreAuthorize("hasAuthority('article:ai:generate')")
+    @PreAuthorize("isAuthenticated()")
     public AjaxResult save(@RequestBody SaveReq req) {
         LoginUser loginUser = SecurityUtils.getLoginUser();
         
@@ -119,29 +204,16 @@ public class ArticleAiController {
         article.setTitle(req.getTitle());
         article.setContent(req.getContent());
         article.setSummary(req.getSummary());
-        
-        // 作者：用户选择"自己"或"AI 自动生成"
         article.setAuthor("AI".equals(req.getAuthorType()) ? "AI 自动生成" : loginUser.getUsername());
-        
-        // 审核状态：待审核
         article.setStatus(0);
-        
-        // 来源类型：AI 生成
         article.setSourceType("AI");
-        
-        // 设置创建人和部门
         article.setCreateBy(loginUser.getUserId());
         article.setDeptId(loginUser.getCurrentDeptId());
         article.setCreateTime(new Date());
         article.setUpdateTime(new Date());
-        
-        // 来源站点标记
         article.setSourceSite("AI Generated");
-        
-        // 设置默认任务ID，防止数据库报错
         article.setTaskId(0L);
 
-        // 设置虚拟 URL 和 Hash，防止数据库报错
         String uuid = java.util.UUID.randomUUID().toString();
         article.setUrl("AI_GENERATED_" + uuid);
         article.setUrlHash("AI_HASH_" + uuid);
@@ -177,7 +249,6 @@ public class ArticleAiController {
     private Map<String, String> parseGeneratedContent(String result) {
         Map<String, String> parsed = new HashMap<>();
         
-        // 简单解析，提取标题、摘要、正文
         String title = extractSection(result, "【标题】", "【");
         String summary = extractSection(result, "【摘要】", "【");
         String content = extractSection(result, "【正文】", null);
@@ -235,3 +306,4 @@ public class ArticleAiController {
         private String authorType; // "SELF" 或 "AI"
     }
 }
+

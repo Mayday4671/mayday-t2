@@ -66,6 +66,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
+        String requestURI = request.getRequestURI();
+        String authHeader = request.getHeader("Authorization");
+        log.info("【Debug Filter】Processing request: {} {}, Authorization: {}", request.getMethod(), requestURI, 
+                 authHeader != null ? (authHeader.length() > 20 ? authHeader.substring(0, 20) + "..." : authHeader) : "NULL");
+
         // 从请求中获取登录用户
         LoginUser loginUser = tokenService.getLoginUser(request);
 
