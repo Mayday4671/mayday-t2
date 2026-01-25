@@ -20,8 +20,14 @@
           </a-select>
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" @click="handleQuery">查询</a-button>
-          <a-button style="margin-left: 8px" @click="resetQuery">重置</a-button>
+          <a-button type="primary" @click="handleQuery">
+            <template #icon><SearchOutlined /></template>
+            查询
+          </a-button>
+          <a-button style="margin-left: 8px" @click="resetQuery">
+            <template #icon><ReloadOutlined /></template>
+            重置
+          </a-button>
         </a-form-item>
       </a-form>
 
@@ -48,8 +54,11 @@
           <template v-if="column.key === 'createTime'">
              {{ formatTime(record.createTime) }}
           </template>
-          <template v-if="column.key === 'action'">
-             <a-button type="link" size="small" @click="handleDetail(record)">详情</a-button>
+           <template v-if="column.key === 'action'">
+             <a-button type="link" size="small" @click="handleDetail(record)">
+                <template #icon><EyeOutlined /></template>
+                详情
+             </a-button>
           </template>
         </template>
       </a-table>
@@ -85,6 +94,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from "vue";
+import { SearchOutlined, ReloadOutlined, EyeOutlined } from "@ant-design/icons-vue";
 import { listAiCallLog } from "../../../api/ai/log";
 import dayjs from "dayjs";
 

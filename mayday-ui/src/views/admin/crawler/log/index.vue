@@ -2,7 +2,10 @@
   <div class="page-container">
     <a-card title="爬虫日志" :bordered="false">
       <template #extra>
-        <a-button @click="fetchList">刷新</a-button>
+        <a-button @click="fetchList">
+          <template #icon><ReloadOutlined /></template>
+          刷新
+        </a-button>
       </template>
 
       <a-table
@@ -30,6 +33,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
+import { ReloadOutlined } from "@ant-design/icons-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import { fetchGetLogList } from "../../../../api/admin/crawler";
 

@@ -1,5 +1,6 @@
 <template>
-  <div class="page-container" ref="pageContainerRef" style="position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+  <div class="page-container" ref="pageContainerRef"
+       style="position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden;">
     <div style="flex: 1; overflow-y: auto; padding: 12px;">
       <a-card title="文章列表" :bordered="false">
         <template #extra>
@@ -10,129 +11,144 @@
               </template>
               AI 生成文章
             </a-button>
+
+            <a-select
+                v-model:value="status"
+                style="width: 150px"
+                :options="statusOptions"
+                placeholder="请选择文章状态"
+                @change="handleSearch"
+                allowClear
+            >
+              <template #suffixIcon>
+                <smile-outlined class="ant-select-suffix"/>
+              </template>
+            </a-select>
+
             <a-input-search
                 v-model:value="searchTitle"
                 placeholder="输入文章标题查询"
                 enter-button
+                @change="handleSearch"
                 @search="handleSearch"
                 style="width: 300px"
+                allowClear
             />
-            <a-button @click="fetchList">刷新</a-button>
-          <a-popconfirm
-              title="确定要批量通过选中的文章吗？"
-              @confirm="handleBatchAudit(1)"
-              :disabled="selectedRowKeys.length === 0"
-          >
-            <a-button
-                type="primary"
+            <a-popconfirm
+                title="确定要批量通过选中的文章吗？"
+                @confirm="handleBatchAudit(1)"
                 :disabled="selectedRowKeys.length === 0"
             >
-              <template #icon>
-                <CheckOutlined/>
-              </template>
-              批量通过
-            </a-button>
-          </a-popconfirm>
-          <a-popconfirm
-              title="确定要批量驳回选中的文章吗？"
-              @confirm="handleBatchAudit(2)"
-              :disabled="selectedRowKeys.length === 0"
-          >
-            <a-button
-                type="primary"
-                :style="{'background-color': selectedRowKeys.length === 0 ? '' :'#faad14', 'border-color': selectedRowKeys.length === 0 ? '' : '#faad14'}"
+              <a-button
+                  type="primary"
+                  :disabled="selectedRowKeys.length === 0"
+              >
+                <template #icon>
+                  <CheckOutlined/>
+                </template>
+                批量通过
+              </a-button>
+            </a-popconfirm>
+            <a-popconfirm
+                title="确定要批量驳回选中的文章吗？"
+                @confirm="handleBatchAudit(2)"
                 :disabled="selectedRowKeys.length === 0"
             >
-              <template #icon>
-                <CloseOutlined/>
-              </template>
-              批量驳回
-            </a-button>
-          </a-popconfirm>
-          <a-popconfirm
-              title="确定要批量删除选中文章吗？"
-              @confirm="handleBatchDelete"
-              :disabled="selectedRowKeys.length === 0"
-          >
-            <a-button
-                type="primary"
-                danger
+              <a-button
+                  type="primary"
+                  :style="{'background-color': selectedRowKeys.length === 0 ? '' :'#faad14', 'border-color': selectedRowKeys.length === 0 ? '' : '#faad14'}"
+                  :disabled="selectedRowKeys.length === 0"
+              >
+                <template #icon>
+                  <CloseOutlined/>
+                </template>
+                批量驳回
+              </a-button>
+            </a-popconfirm>
+            <a-popconfirm
+                title="确定要批量删除选中文章吗？"
+                @confirm="handleBatchDelete"
                 :disabled="selectedRowKeys.length === 0"
             >
-              <template #icon>
-                <DeleteOutlined/>
-              </template>
-              批量删除
-            </a-button>
-          </a-popconfirm>
-        </a-space>
-      </template>
+              <a-button
+                  type="primary"
+                  danger
+                  :disabled="selectedRowKeys.length === 0"
+              >
+                <template #icon>
+                  <DeleteOutlined/>
+                </template>
+                批量删除
+              </a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
 
-      <a-table
-          :loading="loading"
-          :dataSource="dataList"
-          :columns="columns"
-          :pagination="pagination"
-          :row-selection="{
+        <a-table
+            :loading="loading"
+            :dataSource="dataList"
+            :columns="columns"
+            :pagination="pagination"
+            :row-selection="{
           selectedRowKeys: selectedRowKeys,
           onChange: onSelectChange,
         }"
-          rowKey="id"
-          @change="handleTableChange"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'status'">
-            <a-tag :color="getStatusColor(record.status)">{{ getStatusText(record.status) }}</a-tag>
-          </template>
-          <template v-if="column.key === 'sourceType'">
-            <a-tag :color="getSourceColor(record.sourceType)">{{ record.sourceType || 'CRAWLER' }}</a-tag>
-          </template>
-          <template v-if="column.key === 'url'">
-            <a v-if="record.url" :href="record.url" target="_blank">{{
-                record.url
-              }}</a>
-          </template>
+            rowKey="id"
+            @change="handleTableChange"
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'status'">
+              <a-tag :color="getStatusColor(record.status)">{{ getStatusText(record.status) }}</a-tag>
+            </template>
+            <template v-if="column.key === 'sourceType'">
+              <a-tag :color="getSourceColor(record.sourceType)">{{ record.sourceType || 'CRAWLER' }}</a-tag>
+            </template>
+            <template v-if="column.key === 'url'">
+              <a v-if="record.url" :href="record.url" target="_blank">{{
+                  record.url
+                }}</a>
+            </template>
 
-          <template v-if="column.key === 'action'">
-            <a-space>
-              <!-- 通过按钮：待审核(0)或已驳回(2)时显示 -->
-              <a-popconfirm
-                  v-if="(record.status === 0 || record.status === 2) && (hasPermission('crawler:article:audit') || userStore.userInfo?.userId === 1)"
-                  title="确定审核通过吗？"
-                  @confirm="handleAudit(record, 1)"
-              >
-                <a-button type="link" size="small" style="color: #52c41a">
-                  <CheckOutlined/>
-                  通过
-                </a-button>
-              </a-popconfirm>
-              <!-- 驳回按钮：仅已发布(1)时显示 -->
-              <a-popconfirm
-                  v-if="record.status === 1 && (hasPermission('crawler:article:audit') || userStore.userInfo?.userId === 1)"
-                  title="确定驳回吗？"
-                  @confirm="handleAudit(record, 2)"
-              >
-                <a-button type="link" size="small" style="color: #faad14">
-                  <CloseOutlined/>
-                  驳回
-                </a-button>
-              </a-popconfirm>
+            <template v-if="column.key === 'action'">
+              <a-space>
+                <!-- 通过按钮：待审核(0)或已驳回(2)时显示 -->
+                <a-popconfirm
+                    v-if="(record.status === 0 || record.status === 2) && (hasPermission('crawler:article:audit') || userStore.userInfo?.userId === 1)"
+                    title="确定审核通过吗？"
+                    @confirm="handleAudit(record, 1)"
+                >
+                  <a-button type="link" size="small" style="color: #52c41a">
+                    <CheckOutlined/>
+                    通过
+                  </a-button>
+                </a-popconfirm>
+                <!-- 驳回按钮：仅已发布(1)时显示 -->
+                <a-popconfirm
+                    v-if="record.status === 1 && (hasPermission('crawler:article:audit') || userStore.userInfo?.userId === 1)"
+                    title="确定驳回吗？"
+                    @confirm="handleAudit(record, 2)"
+                >
+                  <a-button type="link" size="small" style="color: #faad14">
+                    <CloseOutlined/>
+                    驳回
+                  </a-button>
+                </a-popconfirm>
 
-              <a-button type="link" size="small" @click="openDetail(record.id)">
-                <EyeOutlined/>
-                详情
-              </a-button>
-              <a-popconfirm title="确定删除？" @confirm="handleDelete(record)">
-                <a-button type="link" size="small" danger>
-                  <DeleteOutlined/>
-                  删除
+                <a-button type="link" size="small" @click="openDetail(record.id)">
+                  <EyeOutlined/>
+                  详情
                 </a-button>
-              </a-popconfirm>
-            </a-space>
+                <a-popconfirm title="确定删除？" @confirm="handleDelete(record)">
+                  <a-button type="link" size="small" danger>
+                    <DeleteOutlined/>
+                    删除
+                  </a-button>
+                </a-popconfirm>
+              </a-space>
+            </template>
           </template>
-        </template>
-      </a-table>
-    </a-card>
+        </a-table>
+      </a-card>
     </div> <!-- Close internal scroll -->
 
     <a-drawer v-model:open="drawerVisible" title="文章详情" width="60%">
@@ -227,25 +243,25 @@
           <a-form-item label="正文">
             <template #extra>
               <a-space>
-                <a-switch 
-                  :checked="viewMode === 'preview'" 
-                  checked-children="预览" 
-                  un-checked-children="源码" 
-                  @change="(val: boolean) => viewMode = val ? 'preview' : 'source'" 
+                <a-switch
+                    :checked="viewMode === 'preview'"
+                    checked-children="预览"
+                    un-checked-children="源码"
+                    @change="(val: boolean) => viewMode = val ? 'preview' : 'source'"
                 />
               </a-space>
             </template>
-            <div 
-              ref="markDownBodyRef"
-              v-show="viewMode === 'preview'" 
-              class="markdown-body" 
-              style="border: 1px solid #d9d9d9; border-radius: 6px; padding: 12px; min-height: 332px; max-height: 500px; overflow-y: auto;"
-              v-html="renderMarkdown(aiResult.content)"
+            <div
+                ref="markDownBodyRef"
+                v-show="viewMode === 'preview'"
+                class="markdown-body"
+                style="border: 1px solid #d9d9d9; border-radius: 6px; padding: 12px; min-height: 332px; max-height: 500px; overflow-y: auto;"
+                v-html="renderMarkdown(aiResult.content)"
             ></div>
-            <a-textarea 
-              v-show="viewMode === 'source'" 
-              v-model:value="aiResult.content" 
-              :rows="15" 
+            <a-textarea
+                v-show="viewMode === 'source'"
+                v-model:value="aiResult.content"
+                :rows="15"
             />
           </a-form-item>
           <a-form-item label="修改意见（用于修正功能）">
@@ -294,12 +310,12 @@
 
 <script setup lang="ts">
 import {ref, reactive, onMounted, onUnmounted, watch, nextTick} from "vue";
-import {message} from "ant-design-vue";
+import {message, type SelectProps} from "ant-design-vue";
 import {RobotOutlined, CheckOutlined, CloseOutlined, EyeOutlined, DeleteOutlined} from "@ant-design/icons-vue";
 import type {TablePaginationConfig} from "ant-design-vue";
 import {hasPermission} from "../../../../utils/permission";
 import {useUserStore} from "../../../../store/useUser";
-import { marked } from "marked";
+import {marked} from "marked";
 import hljs from "highlight.js";
 import "highlight.js/styles/atom-one-dark.css";
 
@@ -329,7 +345,21 @@ const loading = ref(false);
 const dataList = ref<any[]>([]);
 const selectedRowKeys = ref<number[]>([]);
 const searchTitle = ref("");
-
+const status = ref();
+const statusOptions = ref<SelectProps['options']>([
+  {
+    value: 0,
+    label: '待审核',
+  },
+  {
+    value: 1,
+    label: '已发布',
+  },
+  {
+    value: 2,
+    label: '已驳回',
+  }
+]);
 // 分页
 const pagination = reactive<TablePaginationConfig>({
   current: 1,
@@ -383,9 +413,9 @@ const markDownBodyRef = ref<HTMLElement | null>(null);
 watch(() => aiResult.content, () => {
   if (viewMode.value === 'preview' && markDownBodyRef.value) {
     nextTick(() => {
-        if (markDownBodyRef.value) {
-            markDownBodyRef.value.scrollTop = markDownBodyRef.value.scrollHeight;
-        }
+      if (markDownBodyRef.value) {
+        markDownBodyRef.value.scrollTop = markDownBodyRef.value.scrollHeight;
+      }
     });
   }
 });
@@ -406,6 +436,7 @@ const fetchList = async () => {
       current: pagination.current,
       pageSize: pagination.pageSize,
       title: searchTitle.value,
+      status: status.value,
     });
     dataList.value = res.records || [];
     pagination.total = res.totalRow || 0;
@@ -498,11 +529,11 @@ const parseAndAssign = (text: string) => {
     const start = text.indexOf(tag);
     if (start === -1) return "";
     const contentStart = start + tag.length;
-    
+
     if (!endPrefix) {
       return text.substring(contentStart);
     }
-    
+
     const end = text.indexOf(endPrefix, contentStart);
     if (end === -1) {
       return text.substring(contentStart);
@@ -550,11 +581,11 @@ const handleGenerate = async () => {
     message.warning("请输入文章主题");
     return;
   }
-  
+
   // 切换到预览步骤
   aiStep.value = 1;
   aiGenerating.value = true;
-  
+
   // 清空结果
   aiResult.title = "";
   aiResult.summary = "";
@@ -562,22 +593,22 @@ const handleGenerate = async () => {
   let rawText = "";
 
   try {
-    const { promise, abort } = streamGenerateArticle(
-      {
-        topic: aiForm.topic,
-        keywords: aiForm.keywords,
-        style: aiForm.style,
-      },
-      (token) => {
-        rawText += token;
-        parseAndAssign(rawText);
-      },
-      (error) => {
-        message.warning(`生成过程提示: ${error}`);
-      }
+    const {promise, abort} = streamGenerateArticle(
+        {
+          topic: aiForm.topic,
+          keywords: aiForm.keywords,
+          style: aiForm.style,
+        },
+        (token) => {
+          rawText += token;
+          parseAndAssign(rawText);
+        },
+        (error) => {
+          message.warning(`生成过程提示: ${error}`);
+        }
     );
-    
-    abortController = { abort };
+
+    abortController = {abort};
     await promise;
     message.success("文章生成完成");
   } catch (e: any) {
@@ -599,9 +630,9 @@ const handleOptimize = async () => {
   }
   aiGenerating.value = true;
   let rawText = "";
-  
+
   try {
-    const { promise, abort } = streamOptimizeArticle(
+    const {promise, abort} = streamOptimizeArticle(
         {
           title: aiResult.title,
           content: aiResult.content,
@@ -611,11 +642,11 @@ const handleOptimize = async () => {
           parseAndAssign(rawText);
         },
         (error) => {
-           message.warning(`优化过程提示: ${error}`);
+          message.warning(`优化过程提示: ${error}`);
         }
     );
-    
-    abortController = { abort };
+
+    abortController = {abort};
     await promise;
     message.success("优化完成");
   } catch (e: any) {
@@ -633,9 +664,9 @@ const handleCorrect = async () => {
   }
   aiGenerating.value = true;
   let rawText = "";
-  
+
   try {
-    const { promise, abort } = streamCorrectArticle(
+    const {promise, abort} = streamCorrectArticle(
         {
           title: aiResult.title,
           content: aiResult.content,
@@ -646,11 +677,11 @@ const handleCorrect = async () => {
           parseAndAssign(rawText);
         },
         (error) => {
-           message.warning(`修正过程提示: ${error}`);
+          message.warning(`修正过程提示: ${error}`);
         }
     );
-    
-    abortController = { abort };
+
+    abortController = {abort};
     await promise;
     correctionText.value = "";
     message.success("修正完成");
@@ -725,9 +756,9 @@ const renderMarkdown = (text: string) => {
 
 // 配置 marked 自定义渲染器以支持代码高亮和语言显示
 const renderer = new marked.Renderer();
-renderer.code = ({ text, lang }: any) => {
+renderer.code = ({text, lang}: any) => {
   const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-  const highlighted = hljs.highlight(text, { language }).value;
+  const highlighted = hljs.highlight(text, {language}).value;
   return `<div class="code-block-wrapper">
             <div class="code-block-header">
               <span class="code-lang">${lang || 'text'}</span>
@@ -736,17 +767,19 @@ renderer.code = ({ text, lang }: any) => {
           </div>`;
 };
 
-marked.use({ renderer });
+marked.use({renderer});
 </script>
 
 <style scoped>
 .page-container {
   height: 100%;
 }
+
 /* 弹窗偏移：使弹窗视觉上居中于右侧内容区（Sidebar宽度约220px） */
 :global(.ai-modal-offset) {
   padding-left: 220px;
 }
+
 /* Markdown 内容样式适配 */
 :deep(.content), :deep(.ant-descriptions-item-content) {
   font-size: 14px;
@@ -819,9 +852,9 @@ marked.use({ renderer });
   margin-bottom: 0.5em;
 }
 
-:deep(.markdown-body h1), 
-:deep(.markdown-body h2), 
-:deep(.markdown-body h3), 
+:deep(.markdown-body h1),
+:deep(.markdown-body h2),
+:deep(.markdown-body h3),
 :deep(.markdown-body h4) {
   margin-top: 1.5em;
   margin-bottom: 0.5em;

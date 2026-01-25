@@ -112,7 +112,10 @@
           title="确定清空该文章下的所有图片吗？"
           @confirm="handleDeleteArticleImages(currentArticle)"
         >
-          <a-button type="primary" danger size="small">清空图片</a-button>
+          <a-button type="primary" danger size="small">
+            <template #icon><DeleteOutlined /></template>
+            清空图片
+          </a-button>
         </a-popconfirm>
       </template>
 

@@ -26,8 +26,14 @@
           </a-select>
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" @click="handleQuery">查询</a-button>
-          <a-button style="margin-left: 8px" @click="resetQuery">重置</a-button>
+          <a-button type="primary" @click="handleQuery">
+            <template #icon><SearchOutlined /></template>
+            查询
+          </a-button>
+          <a-button style="margin-left: 8px" @click="resetQuery">
+            <template #icon><ReloadOutlined /></template>
+            重置
+          </a-button>
         </a-form-item>
       </a-form>
 
@@ -59,13 +65,19 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="handleEdit(record)" v-if="hasPermission('ai:config:edit')">编辑</a-button>
+              <a-button type="link" size="small" @click="handleEdit(record)" v-if="hasPermission('ai:config:edit')">
+                <template #icon><EditOutlined /></template>
+                编辑
+              </a-button>
               <a-popconfirm
                 title="确定删除？"
                 @confirm="handleDelete(record.id)"
                 v-if="hasPermission('ai:config:remove')"
               >
-                <a-button type="link" size="small" danger>删除</a-button>
+                <a-button type="link" size="small" danger>
+                   <template #icon><DeleteOutlined /></template>
+                   删除
+                </a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -185,7 +197,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from "vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, SearchOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { listAiConfig, addAiConfig, updateAiConfig, deleteAiConfig, switchAiConfigStatus } from "../../../api/ai/config";
 import { hasPermission } from "../../../utils/permission";

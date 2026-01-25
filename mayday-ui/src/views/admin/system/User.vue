@@ -26,20 +26,26 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="handleEdit(record)"
-                >编辑</a-button
-              >
+              <a-button type="link" size="small" @click="handleEdit(record)">
+                <template #icon><EditOutlined /></template>
+                编辑
+              </a-button>
               <a-button
                 type="link"
                 size="small"
                 @click="handleAssignRoles(record)"
-                >分配角色</a-button
               >
+                <template #icon><UsergroupAddOutlined /></template>
+                分配角色
+              </a-button>
               <a-popconfirm
                 title="确定删除？"
                 @confirm="handleDelete(record.id)"
               >
-                <a-button type="link" size="small" danger>删除</a-button>
+                <a-button type="link" size="small" danger>
+                  <template #icon><DeleteOutlined /></template>
+                  删除
+                </a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -126,7 +132,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, EditOutlined, DeleteOutlined, UsergroupAddOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import request from "../../../utils/request";
 

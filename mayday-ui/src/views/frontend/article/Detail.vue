@@ -22,10 +22,11 @@
     </header>
 
     <!-- Main Layout -->
-    <div class="portal-layout">
+    <div class="portal-layout" id="portal-scroll-container" ref="scrollRef">
 
       <!-- Center Content (Article Detail) -->
       <main class="main-feed">
+        <div class="scroll-sentinel" ref="sentinelRef"></div>
         <div class="breadcrumb-bar">
           <a-breadcrumb>
             <a-breadcrumb-item><a @click="$router.push('/')">首页</a></a-breadcrumb-item>
@@ -209,6 +210,16 @@
         </div>
       </aside>
     </div>
+    <a-float-button
+      v-if="showBackTop"
+      type="primary"
+      @click="scrollToTop"
+      :style="{ right: '24px', bottom: '100px', zIndex: 999 }"
+    >
+      <template #icon>
+        <vertical-align-top-outlined />
+      </template>
+    </a-float-button>
   </div>
 </template>
 
@@ -216,7 +227,7 @@
 import {ref, onMounted, watch, computed, onUnmounted} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import {
-  LikeOutlined, StarOutlined,
+  LikeOutlined, StarOutlined, VerticalAlignTopOutlined,
   ShareAltOutlined, ExportOutlined, EyeOutlined, PictureOutlined
 } from '@ant-design/icons-vue';
 import {fetchPortalArticleDetail, fetchPortalArticleList} from '../../../api/frontend/portal';
@@ -237,6 +248,8 @@ const article = ref<any>(null);
 const recommendList = ref<any[]>([]);
 const tocList = ref<any[]>([]);
 const activeHeadingId = ref('');
+const scrollRef = ref<HTMLElement | null>(null);
+const sentinelRef = ref<HTMLElement | null>(null);
 
 const getRandomColor = (id: number = 0) => {
   const colors = ['#FF9AA2', '#FFB7B2', '#FFDAC1', '#E2F0CB', '#B5EAD7', '#C7CEEA'];
@@ -295,13 +308,50 @@ const previewImage = (src: string) => {
 };
 
 const isScrollingByClick = ref(false);
+const showBackTop = ref(false);
+let observer: IntersectionObserver | null = null;
 let scrollTimeout: any = null;
+const isMounted = ref(false);
+
+let rafId: number | null = null;
+
+const scrollToTop = () => {
+  const container = scrollRef.value;
+  if (!container) return;
+  
+  // Cancel any ongoing scroll to avoid conflict
+  if (rafId !== null) cancelAnimationFrame(rafId);
+  
+  const start = container.scrollTop;
+  const startTime = Date.now();
+  const duration = 800; // Increased to 800ms for improved "feel"
+
+  const animateScroll = () => {
+    const now = Date.now();
+    const time = Math.min(1, ((now - startTime) / duration));
+    
+    // EaseInOutCubic - smoother start and end
+    const ease = time < 0.5 
+      ? 4 * time * time * time 
+      : 1 - Math.pow(-2 * time + 2, 3) / 2;
+
+    container.scrollTop = start * (1 - ease);
+
+    if (time < 1) {
+      rafId = requestAnimationFrame(animateScroll);
+    } else {
+      rafId = null;
+    }
+  };
+
+  rafId = requestAnimationFrame(animateScroll);
+};
 
 const scrollToSection = (id: string) => {
   activeHeadingId.value = id;
   isScrollingByClick.value = true;
   const el = document.getElementById(id);
-  const container = document.querySelector('.portal-layout');
+  const container = scrollRef.value;
   if (el && container) {
     const rect = el.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
@@ -314,34 +364,66 @@ const scrollToSection = (id: string) => {
   }, 800);
 };
 
-const handleScroll = () => {
-  if (isScrollingByClick.value) return;
-  const headings = tocList.value;
-  const container = document.querySelector('.portal-layout');
-  if (!headings.length || !container) return;
+const setupObserver = () => {
+  if (observer) observer.disconnect();
+  
+  // Sentinel Observer for Back-to-Top visibility
+  const sentinelCallback = (entries: IntersectionObserverEntry[]) => {
+      entries.forEach(entry => {
+          // If sentinel is visible/intersecting, we are at top -> Hide button
+          // If sentinel is NOT visible, we scrolled down -> Show button
+          showBackTop.value = !entry.isIntersecting;
+      });
+  };
+  
+  const sentinelObserver = new IntersectionObserver(sentinelCallback, {
+      root: scrollRef.value,
+      threshold: 0
+  });
+  
+  if (sentinelRef.value) sentinelObserver.observe(sentinelRef.value);
 
-  let currentId = '';
-  for (const heading of headings) {
-    const el = document.getElementById(heading.id);
-    if (el) {
-      if (el.getBoundingClientRect().top - container.getBoundingClientRect().top <= 30) {
-        currentId = heading.id;
-      } else break;
+  // TOC Observer
+  const tocCallback = (entries: IntersectionObserverEntry[]) => {
+    if (isScrollingByClick.value) return;
+    
+    for (const entry of entries) {
+      if (entry.isIntersecting && entry.intersectionRatio > 0) {
+         activeHeadingId.value = entry.target.id;
+      }
     }
-  }
-  activeHeadingId.value = currentId || headings[0]?.id || '';
+  };
+
+  observer = new IntersectionObserver(tocCallback, {
+    root: scrollRef.value,
+    rootMargin: '-60px 0px -80% 0px',
+    threshold: 0
+  });
+
+  tocList.value.forEach(item => {
+    const el = document.getElementById(item.id);
+    if (el) observer?.observe(el);
+  });
 };
 
+// Re-observe when TOC list changes (e.g., article loaded)
+watch(() => tocList.value, () => {
+   // Wait for DOM update
+   setTimeout(setupObserver, 100);
+});
+
 onMounted(() => {
+  isMounted.value = true;
   if (route.params.id) {
     loadDetail(Number(route.params.id));
     loadRecommendations();
   }
-  document.querySelector('.portal-layout')?.addEventListener('scroll', handleScroll);
+  // Removed scroll listener
 });
 
 onUnmounted(() => {
-  document.querySelector('.portal-layout')?.removeEventListener('scroll', handleScroll);
+  // scrollRef.value?.removeEventListener('scroll', handleScroll);<bos>
+  if (observer) observer.disconnect();
   if (scrollTimeout) clearTimeout(scrollTimeout);
 });
 
@@ -425,11 +507,19 @@ watch(() => route.params.id, (newId) => {
   //max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  will-change: transform; /* Force hardware acceleration */
+}
+
+.scroll-sentinel {
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .main-feed {
   flex: 1;
-  min-width: 0;
+  min-width: 0; /* Critical for preventing flex overflow */
 }
 
 .sidebar-right {
@@ -509,6 +599,7 @@ watch(() => route.params.id, (newId) => {
 .article-main-col {
   flex: 1;
   min-width: 0;
+  overflow: hidden; /* Failsafe: Hide anything that still manages to overflow */
 }
 
 .article-toc-col {
@@ -562,6 +653,8 @@ watch(() => route.params.id, (newId) => {
   font-size: 16px;
   line-height: 1.8;
   color: #333;
+  word-break: break-word; /* Prevent long words/URLs from breaking layout */
+  overflow-wrap: break-word;
 }
 
 .detail-body :deep(h1), .detail-body :deep(h2), .detail-body :deep(h3) {
@@ -574,10 +667,22 @@ watch(() => route.params.id, (newId) => {
   margin-bottom: 16px;
 }
 
+/* Nuclear Option: Constrain ALL media and containers */
+.detail-body :deep(img),
+.detail-body :deep(video),
+.detail-body :deep(iframe),
+.detail-body :deep(figure),
+.detail-body :deep(div) {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
 .detail-body :deep(img) {
-  max-width: 100%;
+  height: auto !important;
   border-radius: 8px;
   margin: 20px 0;
+  display: block;
+  object-fit: contain; /* Ensure image scales proportionally within container */
 }
 
 /* Markdown Table - Typora Style */

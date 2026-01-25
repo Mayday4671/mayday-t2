@@ -24,8 +24,14 @@
           </a-select>
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" @click="handleQuery">查询</a-button>
-          <a-button style="margin-left: 8px" @click="resetQuery">重置</a-button>
+          <a-button type="primary" @click="handleQuery">
+            <template #icon><SearchOutlined /></template>
+            查询
+          </a-button>
+          <a-button style="margin-left: 8px" @click="resetQuery">
+            <template #icon><ReloadOutlined /></template>
+            重置
+          </a-button>
         </a-form-item>
       </a-form>
 
@@ -48,27 +54,39 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="handleEdit(record)" v-if="hasPermission('ai:key:edit')">编辑</a-button>
+              <a-button type="link" size="small" @click="handleEdit(record)" v-if="hasPermission('ai:key:edit')">
+                <template #icon><EditOutlined /></template>
+                编辑
+              </a-button>
               <a-popconfirm
                 v-if="record.status === 'ACTIVE' && hasPermission('ai:key:edit')"
                 title="确定禁用该密钥？"
                 @confirm="handleDisable(record.id)"
               >
-                <a-button type="link" size="small" danger>禁用</a-button>
+                <a-button type="link" size="small" danger>
+                  <template #icon><StopOutlined /></template>
+                  禁用
+                </a-button>
               </a-popconfirm>
                <a-popconfirm
                 v-if="record.status !== 'ACTIVE' && hasPermission('ai:key:edit')"
                 title="确定启用该密钥？"
                 @confirm="handleEnable(record.id)"
               >
-                <a-button type="link" size="small" style="color: #52c41a">启用</a-button>
+                <a-button type="link" size="small" style="color: #52c41a">
+                  <template #icon><CheckCircleOutlined /></template>
+                  启用
+                </a-button>
               </a-popconfirm>
                <a-popconfirm
                 title="确定删除？"
                 @confirm="handleDelete(record.id)"
                 v-if="hasPermission('ai:key:remove')"
               >
-                <a-button type="link" size="small" danger>删除</a-button>
+                <a-button type="link" size="small" danger>
+                    <template #icon><DeleteOutlined /></template>
+                    删除
+                </a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -109,7 +127,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from "vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, SearchOutlined, ReloadOutlined, EditOutlined, StopOutlined, CheckCircleOutlined, DeleteOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { listAiKey, addAiKey, updateAiKey, deleteAiKey, disableAiKey, enableAiKey } from "../../../api/ai/key";
 import { hasPermission } from "../../../utils/permission";

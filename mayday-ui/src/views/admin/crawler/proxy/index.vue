@@ -1,11 +1,18 @@
+```html
 <template>
   <div class="page-container">
     <a-card title="代理配置管理" :bordered="false">
       <template #extra>
-        <a-button type="primary" @click="showDialog('add')">
-          <template #icon><PlusOutlined /></template>
-          新增代理
-        </a-button>
+        <a-space>
+          <a-button @click="fetchList">
+            <template #icon><ReloadOutlined /></template>
+            刷新
+          </a-button>
+          <a-button type="primary" @click="showDialog('add')">
+            <template #icon><PlusOutlined /></template>
+            新增代理
+          </a-button>
+        </a-space>
       </template>
 
       <a-table
@@ -29,10 +36,15 @@
                 type="link"
                 size="small"
                 @click="showDialog('edit', record)"
-                >编辑</a-button
               >
+                <template #icon><EditOutlined /></template>
+                编辑
+              </a-button>
               <a-popconfirm title="确定删除？" @confirm="handleDelete(record)">
-                <a-button type="link" size="small" danger>删除</a-button>
+                <a-button type="link" size="small" danger>
+                  <template #icon><DeleteOutlined /></template>
+                  删除
+                </a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -117,7 +129,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, nextTick } from "vue";
 import { message } from "ant-design-vue";
-import { PlusOutlined } from "@ant-design/icons-vue";
+import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from "@ant-design/icons-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import {
   fetchGetProxyList,

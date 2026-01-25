@@ -150,7 +150,6 @@ public class CrawlerExecutor
                 updateTaskStatus(taskId, "ERROR", "起始URL为空");
                 return;
             }
-            
             // 初始化统计
             AtomicInteger totalUrls = new AtomicInteger(0);
             AtomicInteger crawledUrls = new AtomicInteger(0);
@@ -207,16 +206,12 @@ public class CrawlerExecutor
                 // 检查是否超过最大URL数量
                 if (crawledUrls.get() >= maxUrls)
                 {
-                    log.warn("任务 {} 已达到最大URL数量限制: {}", taskId, maxUrls);
-                    addLog(taskId, "WARN", "达到最大URL数量", 
-                            String.format("已达到最大URL数量限制: %d", maxUrls));
                     break;
                 }
                 
                 // 检查停止标志
                 if (!runningTasks.getOrDefault(taskId, false))
                 {
-                    log.info("任务 {} 已收到停止请求，等待正在执行的任务完成", taskId);
                     break;
                 }
                 
@@ -224,10 +219,7 @@ public class CrawlerExecutor
                 while (!urlQueue.isEmpty() && activeTasks.get() < concurrency && runningTasks.getOrDefault(taskId, false))
                 {
                     UrlInfo urlInfo = urlQueue.poll();
-                    if (urlInfo == null)
-                    {
-                        break;
-                    }
+                    if (urlInfo == null) break;
                     
                     // 检查深度
                     if (urlInfo.depth > maxDepth)
@@ -273,8 +265,8 @@ public class CrawlerExecutor
                             
                             crawledUrls.incrementAndGet();
                             
-                            // 更新任务进度（每5个URL推送一次）
-                            if (crawledUrls.get() % 5 == 0)
+                            // 更新任务进度（前20个URL每个都推送，之后每5个推送一次）
+                            if (crawledUrls.get() <= 20 || crawledUrls.get() % 5 == 0)
                             {
                                 updateTaskProgress(taskId, totalUrls.get(), crawledUrls.get(), 
                                         successCount.get(), errorCount.get());
@@ -419,6 +411,16 @@ public class CrawlerExecutor
                           AtomicInteger totalUrls, AtomicInteger crawledUrls,
                           AtomicInteger successCount, AtomicInteger errorCount, int maxUrls)
     {
+        // 人工延时，增加任务可视化效果 (200-500ms)
+        // 这有助于防止任务在前端看起来像是瞬间完成没有进度
+        try {
+            long artificialDelay = 200 + java.util.concurrent.ThreadLocalRandom.current().nextInt(300);
+            Thread.sleep(artificialDelay);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+
         int maxRetries = task.getMaxRetries() != null ? task.getMaxRetries() : 3;
         // 对于连接超时错误，限制最多重试2次（包括第一次尝试，总共3次）
         int maxConnectRetries = 2;

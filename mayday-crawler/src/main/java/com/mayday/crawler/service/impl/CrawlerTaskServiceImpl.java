@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.mayday.crawler.modl.entity.table.CrawlerTaskEntityTableDef.CRAWLER_TASK_ENTITY;
 
@@ -36,6 +37,7 @@ import com.mayday.common.sse.SsePublisher;
  * @since 1.0.0
  */
 @Service
+@Slf4j
 public class CrawlerTaskServiceImpl extends ServiceImpl<CrawlerTaskMapper, CrawlerTaskEntity> implements ICrawlerTaskService {
 
     private static final String SSE_TOPIC_TASK_STATUS = "crawler-task-status";
@@ -160,15 +162,42 @@ public class CrawlerTaskServiceImpl extends ServiceImpl<CrawlerTaskMapper, Crawl
 
         entity.setStatus("RUNNING");
         entity.setStartTime(new Date());
+        entity.setEndTime(null); // Clear previous end time
         entity.setErrorMsg("");
         boolean updated = updateById(entity);
 
         if (updated) {
+            // 计算并设置初始TotalUrls，确保前端进度条立即显示
+            try {
+                if (entity.getStartUrls() != null) {
+                    List<String> startUrls = objectMapper.readValue(entity.getStartUrls(), new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+                    if (startUrls == null || startUrls.isEmpty()) {
+                        throw new BusinessException(ErrorCode.PARAMS_ERROR, "起始URL列表为空，无法启动");
+                    }
+                    entity.setTotalUrls(startUrls.size());
+                    entity.setCrawledUrls(0);
+                    // Reset counts
+                    entity.setSuccessCount(0);
+                    entity.setErrorCount(0);
+                    updateById(entity);
+                } else {
+                     throw new BusinessException(ErrorCode.PARAMS_ERROR, "起始URL未配置");
+                }
+            } catch (BusinessException e) {
+                throw e;
+            } catch (Exception e) {
+                log.warn("解析起始URL失败: {}", e.getMessage());
+                // Don't block if parsing fails but string exists, let executor handle/log it
+            }
+
             // 立即推送"运行中"状态，确保前端即时收到
             publishTaskStatus(entity, "task.started");
             
             crawlerExecutor.ensureTaskNotRunning(id);
-            crawlerExecutor.executeTask(id);
+            // 手动异步执行，规避因循环依赖导致的@Async失效问题
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                crawlerExecutor.executeTask(id);
+            });
         }
 
         return updated;

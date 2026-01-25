@@ -12,6 +12,7 @@
             danger
             @click="handleBatchDelete"
           >
+            <template #icon><DeleteOutlined /></template>
             批量删除
           </a-button>
         </a-space>
@@ -35,29 +36,36 @@
           </template>
 
           <template v-if="column.key === 'status'">
-            <div class="status-cell">
-              <a-space direction="vertical" size="small">
-                <a-tag :color="getStatusColor(record.status)">
-                  <template v-if="record.status === 'RUNNING'">
-                    <LoadingOutlined spin style="margin-right: 4px" />
-                  </template>
-                  {{ getStatusText(record.status) }}
-                </a-tag>
+            <div class="status-cell" style="display: flex; align-items: center; gap: 8px">
+              <a-tag :color="getStatusColor(record.status)">
+                <template v-if="record.status === 'RUNNING'">
+                  <LoadingOutlined spin style="margin-right: 4px" />
+                </template>
+                {{ getStatusText(record.status) }}
+              </a-tag>
+              
+              <!-- 进度条（非未启动状态均显示） -->
+              <div v-if="record.status !== 'NOT_STARTED'" style="flex: 1; min-width: 100px; max-width: 200px">
                 <a-progress
-                  v-if="record.status === 'RUNNING' && record.totalUrls > 0"
                   :percent="
-                    Math.round((record.crawledUrls / record.totalUrls) * 100)
+                    record.totalUrls > 0 
+                      ? Math.round((record.crawledUrls / record.totalUrls) * 100) 
+                      : 0
                   "
                   size="small"
                   :show-info="false"
+                  :status="record.status === 'RUNNING' ? 'active' : (record.status === 'COMPLETED' ? 'success' : (record.status === 'ERROR' ? 'exception' : 'normal'))"
+                  :stroke-width="8"
                 />
-                <span
-                  v-if="record.status === 'RUNNING'"
-                  style="font-size: 12px; color: #999"
-                >
-                  {{ record.crawledUrls }}/{{ record.totalUrls }}
-                </span>
-              </a-space>
+              </div>
+
+              <!-- 计数信息 -->
+              <span
+                v-if="record.totalUrls > 0"
+                style="font-size: 12px; color: #999; white-space: nowrap"
+              >
+                {{ record.crawledUrls }} / {{ record.totalUrls }}
+              </span>
             </div>
           </template>
 
@@ -76,12 +84,12 @@
           <template v-if="column.key === 'action'">
             <a-space wrap>
               <a-button
-                v-if="!['RUNNING', 'PAUSED'].includes(record.status)"
+                v-if="['NOT_STARTED', 'STOPPED', 'COMPLETED', 'ERROR'].includes(record.status)"
                 type="link"
                 size="small"
-                style="color: #52c41a"
                 @click="handleStartTask(record)"
               >
+                <template #icon><PlayCircleOutlined /></template>
                 启动
               </a-button>
 
@@ -89,9 +97,9 @@
                 v-if="record.status === 'RUNNING'"
                 type="link"
                 size="small"
-                style="color: #faad14"
                 @click="handlePauseTask(record)"
               >
+                <template #icon><PauseCircleOutlined /></template>
                 暂停
               </a-button>
 
@@ -101,6 +109,7 @@
                 size="small"
                 @click="handleResumeTask(record)"
               >
+                <template #icon><PlayCircleOutlined /></template>
                 恢复
               </a-button>
 
@@ -111,6 +120,7 @@
                 danger
                 @click="handleStopTask(record)"
               >
+                <template #icon><StopOutlined /></template>
                 停止
               </a-button>
 
@@ -120,6 +130,7 @@
                 @click="showDialog('edit', record)"
                 :disabled="record.status === 'RUNNING'"
               >
+                <template #icon><EditOutlined /></template>
                 编辑
               </a-button>
 
@@ -134,6 +145,7 @@
                   danger
                   :disabled="record.status === 'RUNNING'"
                 >
+                  <template #icon><DeleteOutlined /></template>
                   删除
                 </a-button>
               </a-popconfirm>
@@ -433,7 +445,16 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, nextTick, onUnmounted } from "vue";
-import { PlusOutlined, LoadingOutlined, ClockCircleOutlined } from "@ant-design/icons-vue";
+import { 
+  PlusOutlined, 
+  LoadingOutlined, 
+  ClockCircleOutlined,
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  StopOutlined,
+  EditOutlined,
+  DeleteOutlined
+} from "@ant-design/icons-vue";
 import { message, Modal } from "ant-design-vue";
 import type { TablePaginationConfig } from "ant-design-vue";
 import {
@@ -472,7 +493,7 @@ const columns = [
     ellipsis: true,
   },
   { title: "类型", dataIndex: "crawlType", key: "crawlType", width: 100 },
-  { title: "状态", dataIndex: "status", key: "status", width: 180 },
+  { title: "状态", dataIndex: "status", key: "status", width: 320 },
   {
     title: "运行时间",
     dataIndex: "runTime",
@@ -575,6 +596,8 @@ const formRules = {
 let eventSource: EventSource | null = null;
 // 运行时间动态更新定时器
 let runningTimer: any = null;
+// 状态轮询定时器（兜底方案）
+let pollingTimer: any = null;
 const currentTime = ref(Date.now());
 
 /**
@@ -587,10 +610,10 @@ const initSseConnection = () => {
     return;
   }
 
-  // 构建SSE URL，使用与axios相同的后端地址
+  // 构建SSE URL，使用API代理路径
   // EventSource不支持自定义header，通过query参数传递token
-  const baseUrl = "http://localhost:9002";
-  const sseUrl = `${baseUrl}/crawlerTask/sse/subscribe?token=${encodeURIComponent(token)}`;
+  // 在Vite开发环境下，/api会被代理到 http://localhost:9002
+  const sseUrl = `/api/crawlerTask/sse/subscribe?token=${encodeURIComponent(token)}`;
 
   console.log("[SSE] 开始订阅任务状态:", sseUrl);
   eventSource = new EventSource(sseUrl);
@@ -663,7 +686,6 @@ const handleTaskEvent = (taskData: any) => {
       errorMsg: taskData.errorMsg,
     });
   }
-  // 如果任务不在当前列表中，可能需要刷新列表
 };
 
 onMounted(() => {
@@ -673,6 +695,32 @@ onMounted(() => {
   runningTimer = setInterval(() => {
     currentTime.value = Date.now();
   }, 1000);
+  
+  // 每3秒轮询一次列表，作为SSE的兜底 (静默刷新)
+  pollingTimer = setInterval(() => {
+    fetchGetTaskList({
+      current: pagination.current,
+      size: pagination.pageSize,
+    }).then((res: any) => {
+      const newRecords = res.records || [];
+      newRecords.forEach((remoteRecord: any) => {
+        const localRecord = dataList.value.find(item => item.id === remoteRecord.id);
+        if (localRecord) {
+           // 仅更新关键字段，避免全量替换导致闪烁
+           Object.assign(localRecord, {
+             status: remoteRecord.status,
+             crawledUrls: remoteRecord.crawledUrls,
+             totalUrls: remoteRecord.totalUrls,
+             successCount: remoteRecord.successCount,
+             errorCount: remoteRecord.errorCount,
+             startTime: remoteRecord.startTime,
+             endTime: remoteRecord.endTime,
+             runTime: remoteRecord.runTime
+           });
+        }
+      });
+    }).catch(e => console.error("Polling failed", e));
+  }, 3000);
 });
 
 onUnmounted(() => {
@@ -681,6 +729,7 @@ onUnmounted(() => {
     eventSource = null;
   }
   if (runningTimer) clearInterval(runningTimer);
+  if (pollingTimer) clearInterval(pollingTimer);
 });
 
 const loadData = async () => {

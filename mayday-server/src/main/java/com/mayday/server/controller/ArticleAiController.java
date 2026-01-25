@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -204,7 +205,7 @@ public class ArticleAiController {
         article.setTitle(req.getTitle());
         article.setContent(req.getContent());
         article.setSummary(req.getSummary());
-        article.setAuthor("AI".equals(req.getAuthorType()) ? "AI 自动生成" : loginUser.getUsername());
+        article.setAuthor("AI".equals(req.getAuthorType()) ? "AI 自动生成" : Objects.requireNonNull(loginUser).getUsername());
         article.setStatus(0);
         article.setSourceType("AI");
         article.setCreateBy(loginUser.getUserId());
