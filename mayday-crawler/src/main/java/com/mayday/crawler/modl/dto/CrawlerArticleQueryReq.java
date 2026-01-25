@@ -62,4 +62,14 @@ public class CrawlerArticleQueryReq {
      * 审核状态：0-待审核 1-已发布 2-已驳回
      */
     private Integer status;
+
+    /**
+     * 分类ID
+     */
+    private Long categoryId;
+
+    /**
+     * 排序方式：new-最新 hot-最热 recommend-推荐
+     */
+    private String sortType;
 }

@@ -45,6 +45,20 @@ public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper,
 
     @Override
     public Page<CrawlerArticleEntity> queryList(CrawlerArticleQueryReq req) {
+        QueryWrapper wrapper = buildQueryWrapper(req);
+        // Apply data scope
+        CrawlerDataScopeUtil.applyDataScope(wrapper, CRAWLER_ARTICLE_ENTITY.CREATE_BY, CRAWLER_ARTICLE_ENTITY.DEPT_ID);
+        return doQueryPage(req, wrapper);
+    }
+
+    @Override
+    public Page<CrawlerArticleEntity> queryPortalList(CrawlerArticleQueryReq req) {
+        QueryWrapper wrapper = buildQueryWrapper(req);
+        // Portal: No data scope applied
+        return doQueryPage(req, wrapper);
+    }
+
+    private QueryWrapper buildQueryWrapper(CrawlerArticleQueryReq req) {
         QueryWrapper wrapper = QueryWrapper.create()
                 .where(CRAWLER_ARTICLE_ENTITY.ID.eq(req.getId()).when(req.getId() != null))
                 .and(CRAWLER_ARTICLE_ENTITY.TASK_ID.eq(req.getTaskId()).when(req.getTaskId() != null))
@@ -54,11 +68,19 @@ public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper,
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.ge(req.getPublishTimeStart()).when(req.getPublishTimeStart() != null))
                 .and(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.le(req.getPublishTimeEnd()).when(req.getPublishTimeEnd() != null))
                 .and(CRAWLER_ARTICLE_ENTITY.STATUS.eq(req.getStatus()).when(req.getStatus() != null))
-                .orderBy(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.desc());
+                .and(CRAWLER_ARTICLE_ENTITY.CATEGORY_ID.eq(req.getCategoryId()).when(req.getCategoryId() != null));
+        
+        // Handle Sort
+        if ("hot".equals(req.getSortType())) {
+            wrapper.orderBy(CRAWLER_ARTICLE_ENTITY.VIEW_COUNT.desc());
+        } else {
+            wrapper.orderBy(CRAWLER_ARTICLE_ENTITY.PUBLISH_TIME.desc());
+        }
+        
+        return wrapper;
+    }
 
-        // Apply data scope
-        CrawlerDataScopeUtil.applyDataScope(wrapper, CRAWLER_ARTICLE_ENTITY.CREATE_BY, CRAWLER_ARTICLE_ENTITY.DEPT_ID);
-
+    private Page<CrawlerArticleEntity> doQueryPage(CrawlerArticleQueryReq req, QueryWrapper wrapper) {
         Page<CrawlerArticleEntity> page = page(new Page<>(req.getCurrent(), req.getPageSize()), wrapper);
         
         // Populate cover images from crawler_image table
@@ -87,7 +109,6 @@ public class CrawlerArticleServiceImpl extends ServiceImpl<CrawlerArticleMapper,
                 }
             }
         }
-
         return page;
     }
 

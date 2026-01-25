@@ -26,6 +26,15 @@ public class CrawlerArticleEntity {
     @Schema(description = "主键ID")
     private Long id;
 
+    @Schema(description = "分类ID")
+    private Long categoryId;
+
+    @Schema(description = "浏览量")
+    private Long viewCount;
+
+    @Schema(description = "是否热门/置顶 1:是 0:否")
+    private Integer isHot;
+
     @Schema(description = "任务ID")
     private Long taskId;
 

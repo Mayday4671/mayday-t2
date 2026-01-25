@@ -53,6 +53,9 @@ import {
   GlobalOutlined,
   RobotOutlined,
   CommentOutlined,
+  TagsOutlined,
+  KeyOutlined,
+  DeploymentUnitOutlined,
 } from "@ant-design/icons-vue";
 
 interface MenuMeta {
@@ -99,6 +102,9 @@ const iconMap: Record<string, any> = {
   GlobalOutlined,
   RobotOutlined,
   CommentOutlined,
+  TagsOutlined,
+  KeyOutlined,
+  DeploymentUnitOutlined,
 };
 
 const getIcon = (iconName?: string) => {

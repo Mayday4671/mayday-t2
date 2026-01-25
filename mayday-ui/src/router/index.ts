@@ -113,7 +113,27 @@ const routes: RouteRecordRaw[] = [
           },
         ],
       },
-      // 5. Article Management
+      // 5. CMS / Portal Management
+      {
+        path: "cms",
+        redirect: "/admin/cms/category",
+        meta: { title: "内容管理", icon: "AppstoreOutlined" },
+        children: [
+          {
+            path: "category",
+            name: "CmsCategory",
+            component: () => import("../views/admin/cms/category/index.vue"),
+            meta: { title: "分类管理", icon: "TagsOutlined" },
+          },
+          {
+            path: "portal-menu",
+            name: "PortalMenu",
+            component: () => import("../views/admin/portal/menu/index.vue"),
+            meta: { title: "菜单管理", icon: "MenuOutlined" },
+          },
+        ]
+      },
+      // 6. Article Management
       {
         path: "article",
         redirect: "/admin/article/list",

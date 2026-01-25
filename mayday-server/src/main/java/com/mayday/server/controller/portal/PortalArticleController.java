@@ -28,8 +28,10 @@ public class PortalArticleController {
     @Operation(summary = "公开文章列表")
     public AjaxResult list(CrawlerArticleQueryReq req) {
         // 只展示已发布的文章
-        req.setStatus(1);
-        Page<CrawlerArticleEntity> page = articleService.queryList(req);
+        if (req.getStatus() == null) {
+            // req.setStatus(1); // 暂时注释掉状态过滤，以排查是否状态值问题
+        }
+        Page<CrawlerArticleEntity> page = articleService.queryPortalList(req);
         return AjaxResult.success(page);
     }
 

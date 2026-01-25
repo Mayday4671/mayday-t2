@@ -19,7 +19,16 @@ public interface ICrawlerArticleService extends IService<CrawlerArticleEntity> {
      * @param req 查询请求
      * @return 分页结果
      */
+    /**
+     * 查询文章列表 (带数据权限)
+     */
     Page<CrawlerArticleEntity> queryList(CrawlerArticleQueryReq req);
+
+    /**
+     * 查询门户文章列表 (无数据权限，公开)
+     */
+    Page<CrawlerArticleEntity> queryPortalList(CrawlerArticleQueryReq req);
+
 
     /**
      * 查询文章详情（包含图片处理）

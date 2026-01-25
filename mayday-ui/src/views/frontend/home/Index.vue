@@ -9,23 +9,23 @@
         </div>
         
         <nav class="main-nav">
-          <a class="nav-item active">首页</a>
-          <a class="nav-item">沸点</a>
-          <a class="nav-item">课程</a>
-          <a class="nav-item">直播</a>
+          <!-- <a class="nav-item" :class="{ active: currentPath === '/' }" @click="$router.push('/')">首页</a> -->
+          <a class="nav-item" :class="{ active: currentPath === '/' && !menus.some(m => m.path === '/') }" @click="$router.push('/')" v-if="!menus.some(m => m.path === '/')">首页</a>
+          <a v-else-if="false"></a>
+          <a 
+            class="nav-item" 
+            v-for="menu in menus" 
+            :key="menu.id" 
+            :href="menu.path" 
+            :target="menu.target"
+          >
+             <component :is="getIcon(menu.icon)" v-if="menu.icon" style="margin-right: 4px"/>
+             {{ menu.name }}
+          </a>
         </nav>
 
         <div class="search-area">
-          <div class="search-input-wrapper">
-             <input 
-              v-model="queryParams.title" 
-              @keyup.enter="handleSearch"
-              type="text" 
-              class="search-input" 
-              placeholder="搜索文章、话题..." 
-            />
-            <search-outlined class="search-icon" />
-          </div>
+<!-- ... (search input unchanged) ... -->
         </div>
 
         <div class="user-actions">
@@ -40,13 +40,22 @@
       <!-- Left Sidebar (Collapsible) -->
       <aside class="sidebar-left">
         <div class="nav-card">
-          <a class="side-nav-item active"><fire-outlined /> 综合推荐</a>
-          <a class="side-nav-item"><eye-outlined /> 关注</a>
-          <a class="side-nav-item"><rocket-outlined /> 后端</a>
-          <a class="side-nav-item"><appstore-outlined /> 前端</a>
-          <a class="side-nav-item"><android-outlined /> Android</a>
-          <a class="side-nav-item"><apple-outlined /> iOS</a>
-          <a class="side-nav-item"><code-outlined /> 人工智能</a>
+          <div 
+             class="side-nav-item" 
+             :class="{ active: activeCategory === 0 }"
+             @click="handleCategoryClick(0)"
+          >
+             <fire-outlined /> 综合推荐
+          </div>
+          <div 
+             class="side-nav-item"
+             v-for="cat in categories"
+             :key="cat.id"
+             :class="{ active: activeCategory === cat.id }"
+             @click="handleCategoryClick(cat.id)"
+          >
+             <component :is="getIcon(cat.icon)" v-if="cat.icon" /> {{ cat.name }}
+          </div>
         </div>
         
       
@@ -56,9 +65,9 @@
       <main class="main-feed">
         <!-- Feed Tabs -->
         <div class="feed-tabs-card">
-          <div class="tab-item active">推荐</div>
-          <div class="tab-item">最新</div>
-          <div class="tab-item">热榜</div>
+          <div class="tab-item" :class="{ active: activeTab === 'recommend' }" @click="handleTabChange('recommend')">推荐</div>
+          <div class="tab-item" :class="{ active: activeTab === 'new' }" @click="handleTabChange('new')">最新</div>
+          <div class="tab-item" :class="{ active: activeTab === 'hot' }" @click="handleTabChange('hot')">热榜</div>
         </div>
 
         <!-- Article Grid -->
@@ -115,7 +124,7 @@
               show-size-changer
               @change="handlePageChange"
               align="center"
-            />
+              />
         </div>
       </main>
 
@@ -141,11 +150,17 @@
              <span class="more"><right-outlined /></span>
            </div>
            <div class="hot-list">
-              <div class="hot-item" v-for="i in 5" :key="i">
-                 <span class="rank-badge" :class="'rank-' + i">{{ i }}</span>
-                 <span class="text">DeepSeek R1 发布性能报告：超越 Open1o 预览版</span>
-                 <span class="hot-icon" v-if="i <= 2"><fire-outlined /></span>
+              <div 
+                 class="hot-item" 
+                 v-for="(article, index) in hotArticles" 
+                 :key="article.id"
+                 @click="openDetail(article)"
+              >
+                 <span class="rank-badge" :class="'rank-' + (index + 1)">{{ index + 1 }}</span>
+                 <span class="text" :title="article.title">{{ article.title }}</span>
+                 <span class="hot-icon" v-if="index <= 2"><fire-outlined /></span>
               </div>
+              <div v-if="hotArticles.length === 0" style="text-align:center;color:#999;padding:10px;">暂无热榜数据</div>
            </div>
         </div>
       </aside>
@@ -158,13 +173,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
+import * as Icons from '@ant-design/icons-vue';
 import { 
   SearchOutlined, FireOutlined, EyeOutlined, RocketOutlined,
   AppstoreOutlined, AndroidOutlined, AppleOutlined, CodeOutlined,
   RightOutlined
 } from '@ant-design/icons-vue';
 import { fetchPortalArticleList } from '../../../api/frontend/portal';
+import { getPortalHomeInit } from '../../../api/portal/home';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -195,24 +212,26 @@ interface Article {
 const loading = ref(false);
 const articleList = ref<Article[]>([]);
 const router = useRouter();
+const route = useRoute();
+const currentPath = ref(route.path);
 
 const pagination = reactive({ current: 1, pageSize: 12, total: 0 });
 const queryParams = reactive({ title: '' });
 
+// CMS Data
+const menus = ref<any[]>([]);
+const categories = ref<any[]>([]);
+const hotArticles = ref<any[]>([]);
+const activeCategory = ref(0);
+
 // Helper: Get article image (Priority: Cover -> First Content Image -> Local Fallback)
 const getArticleImage = (article: Article): string => {
-  // 1. Prioritize explicit backend cover field
   if ((article as any).coverImage) return (article as any).coverImage;
-
-  // 2. Extract first img src from HTML content
   const html = article.content || article.summary || '';
   const imgMatch = html.match(/<img[^>]+src="([^">]+)"/);
   if (imgMatch && imgMatch[1]) {
     return imgMatch[1];
   }
-
-  // 3. Fallback: Local random image based on ID
-  // TS might think array access is undefined, so we default to empty string or assert
   const fallback = localCovers[0] || ''; 
   if (!article.id) return fallback;
   const index = Number(article.id) % localCovers.length;
@@ -226,21 +245,37 @@ const getRandomColor = (id: number = 0) => {
   return colors[id % colors.length];
 };
 
+const activeTab = ref('recommend');
+
 const fetchArticles = async () => {
   loading.value = true;
   try {
-    const res: any = await fetchPortalArticleList({
+    const params = {
       current: pagination.current,
       pageSize: pagination.pageSize,
-      title: queryParams.title
-    });
+      title: queryParams.title,
+      categoryId: activeCategory.value !== 0 ? Number(activeCategory.value) : undefined,
+      sortType: activeTab.value
+    };
+
+    const res: any = await fetchPortalArticleList(params);
     if (res && res.records) {
       articleList.value = res.records;
       pagination.total = res.totalRow || 0;
-      // Scroll to top of feed
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   } catch (e) { console.error(e); } finally { loading.value = false; }
+};
+
+const fetchPortalData = async () => {
+    try {
+        const res: any = await getPortalHomeInit();
+        if(res) {
+            menus.value = res.menus || [];
+            categories.value = res.categories || [];
+            hotArticles.value = res.hotArticles || [];
+        }
+    } catch(e) { console.error(e); }
 };
 
 const handleSearch = () => { pagination.current = 1; fetchArticles(); };
@@ -250,9 +285,28 @@ const openDetail = (article: Article) => {
   router.push('/article/' + article.id);
 };
 
+const handleTabChange = (tab: string) => {
+  activeTab.value = tab;
+  pagination.current = 1;
+  fetchArticles();
+};
+
+const handleCategoryClick = (id: number) => {
+  activeCategory.value = id;
+  pagination.current = 1;
+  fetchArticles();
+};
+
+const getIcon = (name: string) => {
+    return (Icons as any)[name] || Icons.FileTextOutlined;
+}
+
 const formatDate = (dateStr?: string) => dateStr ? dayjs(dateStr).fromNow() : '刚刚';
 
-onMounted(() => fetchArticles());
+onMounted(() => {
+    fetchPortalData();
+    fetchArticles();
+});
 </script>
 
 <style scoped>
@@ -514,6 +568,29 @@ onMounted(() => fetchArticles());
 .login-link, .regsiter-link { cursor: pointer; transition: color 0.2s; }
 .login-link:hover, .regsiter-link:hover { color: #1677ff; }
 .divider { color: #e5e6eb; }
+
+.nav-item {
+  font-size: 16px;
+  color: #333;
+  cursor: pointer;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+}
+
+.nav-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #1677ff;
+}
+
+.nav-item.active {
+  color: #1677ff;
+  font-weight: 500;
+  background: rgba(22, 119, 255, 0.1);
+}
 
 .load-more-btn { margin-top: 24px; height: 40px; }
 .pagination-wrapper { margin-top: 24px; display: flex; justify-content: center; }
